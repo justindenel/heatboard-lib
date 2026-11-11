@@ -8,6 +8,12 @@ interface LocalisedName {
 }
 
 const names = {
+	categories: {
+		Wave: { fr: "Vagues", en: "Wave" },
+		Jump: { fr: "Sauts", en: "Jump" },
+		Move: { fr: "Figures", en: "Move" },
+		Trick: { fr: "Figures", en: "Trick" },
+	},
 	families: {
 		forward: { fr: "Avant", en: "Forward" },
 		backward: { fr: "Arrière", en: "Backward" },
@@ -34,18 +40,26 @@ const nameIn = (
 ): string | undefined => table[key]?.[locale];
 
 /**
- * Presets are stored with English names; the names of the windsurf wave example (families,
- * variants, a few figures) are written in `locale` when a bracket is created from it or the example
- * is imported. The result holds plain strings.
+ * Presets are stored with English names; the names of the examples (categories, and for windsurf
+ * wave families, variants and a few figures) are written in `locale` when a bracket is created from
+ * one or an example is imported. The result holds plain strings.
  */
 export function localiseScoring(
 	config: ScoringConfig,
 	locale: PresetLocale,
 ): ScoringConfig {
+	// A category's type is also its key (rides, penalties, priority), so this only fits a config
+	// with no rides yet, which is how the examples are used.
+	const typeIn = (type: string) =>
+		nameIn(names.categories, type, locale) ?? type;
 	return {
 		...config,
+		...(config.priorityType !== undefined && {
+			priorityType: typeIn(config.priorityType),
+		}),
 		categories: config.categories.map((category) => ({
 			...category,
+			type: typeIn(category.type),
 			...(category.families && {
 				families: category.families.map((family) => ({
 					...family,
@@ -94,9 +108,9 @@ export const scoringPresets: {
 		method: "points",
 		scale: halfStepScale,
 		categories: [
-			{ type: "Wave", counted: 2 },
+			{ type: names.categories.Wave.en, counted: 2 },
 			{
-				type: "Jump",
+				type: names.categories.Jump.en,
 				counted: 2,
 				distinctFamilies: true,
 				families: [
@@ -148,20 +162,20 @@ export const scoringPresets: {
 	windsurfFreestyle: {
 		method: "points",
 		scale: halfStepScale,
-		categories: [{ type: "Move", counted: 5 }],
+		categories: [{ type: names.categories.Move.en, counted: 5 }],
 		aggregation: "mean",
 	},
 	// Needs head-judge mode: the head judge announces the shared rides.
 	surf: {
 		method: "rideMeans",
 		scale: halfStepScale,
-		categories: [{ type: "Wave", counted: 2 }],
+		categories: [{ type: names.categories.Wave.en, counted: 2 }],
 		aggregation: "mean",
 	},
 	kiteFreestyle: {
 		method: "points",
 		scale: halfStepScale,
-		categories: [{ type: "Trick", counted: 3 }],
+		categories: [{ type: names.categories.Trick.en, counted: 3 }],
 		aggregation: "mean",
 	},
 };
