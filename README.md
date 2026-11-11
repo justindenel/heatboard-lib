@@ -2,6 +2,8 @@
 
 Heat-based competition brackets for board sports (windsurf, surf, kite): a framework-agnostic core that holds every rule, and React components to run an event on top of it.
 
+<p align="center"><img src=".github/assets/heatboard-demo.gif" width="360" alt="Heatboard in action: a bracket built from an AI assistant, judges scoring on their phones, live public page, and the open source board switching themes" /></p>
+
 - **Formats by rounds.** Build the rounds, heats and links from a few numbers (riders, heats, qualifiers), with an optional repechage, a small final and seeds that join a round directly. Formats export to and import from JSON.
 - **Race format.** Scoring with categories, counted rides, and figures grouped in families with variants; presets for windsurf wave and freestyle, surf and kite freestyle. Heat timer, breaks and automatic chaining.
 - **Judging.** Free mode (each judge notes alone) or head-judge mode (shared rides, ride means), with penalties, ties and live totals.
