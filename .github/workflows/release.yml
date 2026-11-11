@@ -51,8 +51,15 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # changeset version fails when nothing is pending, which is the case on a re-run after a
+      # failed publish: the version commit is already on release.
       - name: Apply pending changesets
-        run: pnpm changeset version
+        run: |
+          if find .changeset -name "*.md" ! -name README.md | grep -q .; then
+            pnpm changeset version
+          else
+            echo "No pending changeset."
+          fi
       - name: Commit the version bump to release
         id: bump
         run: |
