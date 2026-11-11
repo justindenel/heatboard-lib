@@ -1,6 +1,6 @@
 {
 	"name": "@heatboard/core",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Framework-agnostic logic for heat-based competition brackets: formats, advancement, judging and standings.",
 	"license": "MPL-2.0",
 	"repository": {
