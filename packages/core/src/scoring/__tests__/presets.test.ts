@@ -63,7 +63,7 @@ describe("scoringPresets.windsurfWave", () => {
 
 describe("localiseScoring", () => {
 	const jump = (config: typeof scoringPresets.windsurfWave) =>
-		config.categories.find((c) => c.type === "Jump");
+		config.categories.find((c) => c.families !== undefined);
 
 	it("writes family, variant and figure names in the French locale", () => {
 		const fr = localiseScoring(scoringPresets.windsurfWave, "fr");
@@ -84,11 +84,32 @@ describe("localiseScoring", () => {
 		expect(scoringProblem(fr)).toBeUndefined();
 	});
 
-	it("keeps English names and leaves configs without families untouched", () => {
-		const en = localiseScoring(scoringPresets.windsurfWave, "en");
-		expect(en).toEqual(scoringPresets.windsurfWave);
-		expect(localiseScoring(scoringPresets.surf, "fr")).toEqual(
-			scoringPresets.surf,
+	it("writes the category names of every example in French", () => {
+		const types = (config: typeof scoringPresets.windsurfWave) =>
+			localiseScoring(config, "fr").categories.map((c) => c.type);
+		expect(types(scoringPresets.windsurfWave)).toEqual(["Vagues", "Sauts"]);
+		expect(types(scoringPresets.windsurfFreestyle)).toEqual(["Figures"]);
+		expect(types(scoringPresets.surf)).toEqual(["Vagues"]);
+		expect(types(scoringPresets.kiteFreestyle)).toEqual(["Figures"]);
+	});
+
+	it("renames the priority category with the categories", () => {
+		const fr = localiseScoring(
+			{ ...scoringPresets.windsurfWave, priorityType: "Wave" },
+			"fr",
 		);
+		expect(fr.priorityType).toBe("Vagues");
+		expect(scoringProblem(fr)).toBeUndefined();
+	});
+
+	it("keeps English names and unknown category names as they are", () => {
+		for (const preset of Object.values(scoringPresets)) {
+			expect(localiseScoring(preset, "en")).toEqual(preset);
+		}
+		const custom = {
+			...scoringPresets.surf,
+			categories: [{ type: "Aerial", counted: 1 }],
+		};
+		expect(localiseScoring(custom, "fr")).toEqual(custom);
 	});
 });
