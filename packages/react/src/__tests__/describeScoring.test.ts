@@ -19,10 +19,10 @@ describe("describeScoring", () => {
 			describeScoring(localiseScoring(placingsWave, "fr"), labels.fr),
 		).toBe(
 			"Chaque juge note de 0 à 10 par demi-point. " +
-				"On garde les 2 meilleures notes de Wave et les 2 meilleures notes de Jump. " +
-				"Les 2 Jump comptés doivent être de familles différentes (Avant, Arrière, Combinée, Autre). " +
+				"On garde les 2 meilleures notes de Vagues et les 2 meilleures notes de Sauts. " +
+				"Les 2 Sauts comptés doivent être de familles différentes (Avant, Arrière, Combinée, Autre). " +
 				"Chaque juge classe les riders sur ses notes ; les places sont additionnées et la plus petite somme gagne. " +
-				"En cas d'égalité, la meilleure note de Wave départage, puis la meilleure note isolée.",
+				"En cas d'égalité, la meilleure note de Vagues départage, puis la meilleure note isolée.",
 		);
 	});
 

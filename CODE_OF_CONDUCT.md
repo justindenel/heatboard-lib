@@ -6,7 +6,7 @@ In short: be respectful, welcome different viewpoints, give and accept construct
 
 ## Reporting
 
-To report unacceptable behaviour, contact the maintainer privately through [GitHub](https://github.com/justindenel) (a private message or a [private security advisory](https://github.com/justindenel/heatboard-lib/security/advisories/new) if no other channel is available). Reports are handled confidentially.
+To report unacceptable behaviour, e-mail the maintainer at [heatboard.app@gmail.com](mailto:heatboard.app@gmail.com). Reports are handled confidentially.
 
 ## Enforcement
 

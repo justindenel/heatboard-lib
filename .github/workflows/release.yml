@@ -41,10 +41,10 @@ jobs:
         env:
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: pnpm/action-setup@v6
+      # No dependency cache in the job that can publish: a poisoned cache would ship.
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-          cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm typecheck
