@@ -1,0 +1,59 @@
+{
+	"name": "@heatboard/core",
+	"version": "0.1.0",
+	"description": "Framework-agnostic logic for heat-based competition brackets: formats, advancement, judging and standings.",
+	"license": "MPL-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/justindenel/heatboard-lib.git",
+		"directory": "packages/core"
+	},
+	"homepage": "https://github.com/justindenel/heatboard-lib/tree/main/packages/core#readme",
+	"bugs": {
+		"url": "https://github.com/justindenel/heatboard-lib/issues"
+	},
+	"keywords": [
+		"heats",
+		"bracket",
+		"competition",
+		"judging",
+		"surf",
+		"windsurf",
+		"kite"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"build": "vite build && tsc -p tsconfig.build.json --emitDeclarationOnly",
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"vite": "^8.3.6"
+	},
+	"publishConfig": {
+		"access": "public",
+		"provenance": true,
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"import": "./dist/index.js",
+				"default": "./dist/index.js"
+			}
+		}
+	}
+}

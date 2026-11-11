@@ -1,0 +1,102 @@
+name: Release
+
+# Publishing happens only here, when a pull request into `release` is merged
+# (or a maintainer re-runs it from the `release` branch after a failure).
+on:
+  pull_request:
+    types: [closed]
+    branches: [release]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.repository == 'justindenel/heatboard-lib' &&
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release' ||
+      github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    permissions:
+      # Push the version commit and tags to `release`, create GitHub releases.
+      contents: write
+      # Open the pull request that syncs `release` back into `main`.
+      pull-requests: write
+      # npm trusted publishing (OIDC): no NPM_TOKEN secret is used anywhere.
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # The branch tip, not the merge commit: a re-run must see the version
+      # commit pushed by a previous attempt. Full history to get the tags.
+      - uses: actions/checkout@v7
+        with:
+          ref: release
+          fetch-depth: 0
+      - name: Check that the merged commit is on the release branch
+        if: github.event_name == 'pull_request'
+        run: git merge-base --is-ancestor "$MERGE_SHA" HEAD
+        env:
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+
+      - name: Apply pending changesets
+        run: pnpm changeset version
+      - name: Commit the version bump to release
+        id: bump
+        run: |
+          if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+            echo "No pending changeset, nothing to version."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: version packages"
+          git push origin HEAD:release
+          echo "bumped=true" >> "$GITHUB_OUTPUT"
+
+      - name: Record existing tags
+        run: git tag --list | sort > "$RUNNER_TEMP/tags-before.txt"
+      # Publishes the versions that are not on npm yet (so it also recovers
+      # from a failed run) and creates one git tag per package published.
+      # `changeset tag` then adds the tags that a previous failed run lost.
+      - name: Publish to npm
+        run: |
+          pnpm release
+          pnpm changeset tag
+      - name: Push tags
+        run: git push origin --tags
+
+      - name: Create GitHub releases
+        # Best effort: the packages are already published at this point.
+        continue-on-error: true
+        run: |
+          git tag --list | sort > "$RUNNER_TEMP/tags-after.txt"
+          for tag in $(comm -13 "$RUNNER_TEMP/tags-before.txt" "$RUNNER_TEMP/tags-after.txt"); do
+            name="${tag%@*}"
+            version="${tag##*@}"
+            changelog="packages/${name#@heatboard/}/CHANGELOG.md"
+            awk -v v="$version" '$0 == "## " v {found=1; next} /^## /{found=0} found' "$changelog" > "$RUNNER_TEMP/notes.md"
+            gh release create "$tag" --verify-tag --title "$tag" --notes-file "$RUNNER_TEMP/notes.md"
+          done
+
+      - name: Open a pull request that syncs release into main
+        if: steps.bump.outputs.bumped == 'true'
+        run: |
+          if [ -z "$(gh pr list --base main --head release --state open --json number --jq '.[].number')" ]; then
+            gh pr create --base main --head release \
+              --title "chore: sync release into main" \
+              --body "Brings the version bump, changelogs and consumed changesets back to main. Merge with a merge commit, before the next release."
+          fi

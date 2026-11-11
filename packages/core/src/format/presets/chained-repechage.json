@@ -1,0 +1,57 @@
+{
+	"heatboardFormat": 1,
+	"name": "Chained repechage",
+	"description": "Top 2 advance, places 3-4 drop to the repechage rounds.",
+	"fill": "serpentine",
+	"rounds": [
+		{
+			"key": "r1",
+			"name": "Round 1",
+			"heats": 4,
+			"outcomes": [
+				{ "ranks": [1, 2], "to": "r2" },
+				{ "ranks": [3, 4], "to": "rep-r1" }
+			]
+		},
+		{
+			"key": "rep-r1",
+			"name": "Repechage 1",
+			"group": "repechage",
+			"heats": 2,
+			"outcomes": [{ "ranks": [1, 2], "to": "rep-r2" }]
+		},
+		{
+			"key": "r2",
+			"name": "Round 2",
+			"heats": 2,
+			"outcomes": [
+				{ "ranks": [1, 2], "to": "r3" },
+				{ "ranks": [3, 4], "to": "rep-r2" }
+			]
+		},
+		{
+			"key": "rep-r2",
+			"name": "Repechage 2",
+			"group": "repechage",
+			"heats": 2,
+			"outcomes": [{ "ranks": [1, 2], "to": "rep-r3" }]
+		},
+		{
+			"key": "r3",
+			"name": "Round 3",
+			"heats": 1,
+			"outcomes": [
+				{ "ranks": [1, 2], "to": "final" },
+				{ "ranks": [3, 4], "to": "rep-r3" }
+			]
+		},
+		{
+			"key": "rep-r3",
+			"name": "Repechage 3",
+			"group": "repechage",
+			"heats": 1,
+			"outcomes": [{ "ranks": [1, 2], "to": "final" }]
+		},
+		{ "key": "final", "name": "Final", "heats": 1 }
+	]
+}

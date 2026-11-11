@@ -1,0 +1,21 @@
+{
+	"heatboardFormat": 1,
+	"name": "Single elimination",
+	"description": "Top 2 of each heat advance until the final.",
+	"fill": "serpentine",
+	"rounds": [
+		{
+			"key": "r1",
+			"name": "Round 1",
+			"heats": 4,
+			"outcomes": [{ "ranks": [1, 2], "to": "r2" }]
+		},
+		{
+			"key": "r2",
+			"name": "Semi-finals",
+			"heats": 2,
+			"outcomes": [{ "ranks": [1, 2], "to": "final" }]
+		},
+		{ "key": "final", "name": "Final", "heats": 1 }
+	]
+}
