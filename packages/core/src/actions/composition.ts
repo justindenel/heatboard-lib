@@ -11,7 +11,12 @@ import {
 import { fail, ok } from "../internal/result";
 import type { Bracket, Heat, HeatSlot } from "../model";
 import type { BracketOptions } from "../options";
-import { findHeat, type FoundHeat } from "../queries";
+import {
+	advancementOf,
+	findHeat,
+	hasStarted,
+	type FoundHeat,
+} from "../queries";
 
 export function insertAt<T>(
 	items: T[],
@@ -187,7 +192,11 @@ export function move(
 	}
 
 	const crossRound = from.roundIndex !== to.roundIndex;
-	if (crossRound && !options.allowCrossRoundMove) {
+	const crossRoundAllowed =
+		options.allowCrossRoundMove ||
+		!hasStarted(bracket) ||
+		advancementOf(bracket) === "manual";
+	if (crossRound && !crossRoundAllowed) {
 		return fail(
 			"CROSS_ROUND_MOVE",
 			`Moving rider "${riderId}" from round "${from.round.id}" to round "${to.round.id}" is not allowed`,
@@ -229,4 +238,44 @@ export function move(
 			return heat;
 		}),
 	);
+}
+
+/**
+ * Brings a rider to a later round. From a judged or locked heat the rider is copied and keeps its
+ * result there; from a pending heat it is moved. Refused when the source heat is running or the
+ * target round does not come after the source round.
+ */
+export function advance(
+	bracket: Bracket,
+	riderId: string,
+	fromHeatId: string,
+	toHeatId: string,
+	index: number | undefined,
+	options: Required<BracketOptions>,
+): ActionResult {
+	const from = findHeat(bracket, fromHeatId);
+	if (!from) return unknownHeat(fromHeatId);
+	const to = findHeat(bracket, toHeatId);
+	if (!to) return unknownHeat(toHeatId);
+	if (to.roundIndex <= from.roundIndex) {
+		return fail(
+			"NOT_LATER_ROUND",
+			`Round "${to.round.id}" does not come after round "${from.round.id}"`,
+			{ riderId, fromRoundId: from.round.id, toRoundId: to.round.id },
+		);
+	}
+	if (!from.heat.slots.some((s) => s.riderId === riderId)) {
+		return notInHeat(riderId, fromHeatId);
+	}
+	if (from.heat.status === "running") {
+		return fail(
+			"SOURCE_HEAT_RUNNING",
+			`Heat "${from.heat.id}" is running and its riders cannot be brought up yet`,
+			{ heatId: from.heat.id },
+		);
+	}
+	if (from.heat.status === "pending") {
+		return move(bracket, riderId, fromHeatId, toHeatId, index, options);
+	}
+	return place(bracket, riderId, toHeatId, index);
 }

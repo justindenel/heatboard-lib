@@ -21,7 +21,7 @@ import { setViewerDisplay } from "./judgingMode";
 import { setRaceFormat } from "./raceFormat";
 import { cancelPauseRequest, pauseRace, resumeRace } from "./chain";
 import type { HeatData } from "../lifecycle/scoring";
-import { move, place, remove } from "./composition";
+import { advance, move, place, remove } from "./composition";
 import { drawRound } from "./draw";
 import { closeDoubleElimination, openDoubleElimination } from "./double";
 import { applyFormat } from "./format";
@@ -55,11 +55,19 @@ import type {
 } from "../model";
 import type { Penalty, ScoringConfig } from "../scoring/model";
 import { DEFAULT_OPTIONS, type BracketOptions } from "../options";
+import { advancementOf, findHeat, hasStarted } from "../queries";
 
 export type Action =
 	| { type: "place"; riderId: string; heatId: string; index?: number }
 	| {
 			type: "move";
+			riderId: string;
+			fromHeatId: string;
+			toHeatId: string;
+			index?: number;
+	  }
+	| {
+			type: "advance";
 			riderId: string;
 			fromHeatId: string;
 			toHeatId: string;
@@ -165,6 +173,27 @@ function allowedWhenValidated(action: Action): boolean {
 	return VALIDATED_ALLOWED.has(action.type);
 }
 
+/** Gestures that change who sits in which heat; a reorder inside one heat is not one. */
+function changesPlacement(bracket: Bracket, action: Action): boolean {
+	switch (action.type) {
+		case "place":
+		case "remove":
+		case "advance":
+		case "drawRound":
+			return true;
+		case "move": {
+			const from = findHeat(bracket, action.fromHeatId);
+			const to = findHeat(bracket, action.toHeatId);
+			if (!from || !to) return false;
+			return (
+				from.roundIndex !== to.roundIndex || from.heatIndex !== to.heatIndex
+			);
+		}
+		default:
+			return false;
+	}
+}
+
 /** "finished" follows the heats: reached when the last required heat is judged, left when one is reopened. */
 function followHeats(result: ActionResult): ActionResult {
 	if (!result.ok) return result;
@@ -209,11 +238,32 @@ function dispatch(
 		);
 	}
 	const resolved = { ...DEFAULT_OPTIONS, ...options };
+	if (
+		resolved.lockPlacementOnceStarted &&
+		hasStarted(bracket) &&
+		advancementOf(bracket) === "auto" &&
+		changesPlacement(bracket, action)
+	) {
+		return fail(
+			"PLACEMENT_LOCKED",
+			`Action "${action.type}" is not allowed once the bracket has started with automatic advancement`,
+			{ type: action.type },
+		);
+	}
 	switch (action.type) {
 		case "place":
 			return place(bracket, action.riderId, action.heatId, action.index);
 		case "move":
 			return move(
+				bracket,
+				action.riderId,
+				action.fromHeatId,
+				action.toHeatId,
+				action.index,
+				resolved,
+			);
+		case "advance":
+			return advance(
 				bracket,
 				action.riderId,
 				action.fromHeatId,

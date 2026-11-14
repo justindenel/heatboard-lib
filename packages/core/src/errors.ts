@@ -45,7 +45,10 @@ export type BracketErrorCode =
 	| "FORMAT_LOCKED"
 	| "NOTHING_TO_SIMULATE"
 	| "SIMULATE_WHILE_RUNNING"
-	| "ADVANCEMENT_LOCKED";
+	| "ADVANCEMENT_LOCKED"
+	| "NOT_LATER_ROUND"
+	| "SOURCE_HEAT_RUNNING"
+	| "PLACEMENT_LOCKED";
 
 export interface BracketError {
 	code: BracketErrorCode;

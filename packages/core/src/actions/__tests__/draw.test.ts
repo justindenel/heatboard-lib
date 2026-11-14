@@ -166,6 +166,30 @@ describe("drawRound", () => {
 		).toBe("BRACKET_VALIDATED");
 	});
 
+	test("is refused as PLACEMENT_LOCKED once started in auto when the option is on", () => {
+		const b = advanceHeat(
+			bracket(
+				[
+					round("r1", [heat("h1", ["r1"]), heat("h2", ["r2"])]),
+					round("r2", [heat("f1")]),
+				],
+				{ status: "published", entries: riders(4) },
+			),
+			"h1",
+			"running",
+		);
+		const action = { type: "drawRound", roundId: "r2", drawSeed: 1 } as const;
+		expect(errorCode(b, action, { lockPlacementOnceStarted: true })).toBe(
+			"PLACEMENT_LOCKED",
+		);
+		expect(
+			errorCode({ ...b, advancement: "manual" }, action, {
+				lockPlacementOnceStarted: true,
+			}),
+		).not.toBe("PLACEMENT_LOCKED");
+		expect(errorCode(b, action)).not.toBe("PLACEMENT_LOCKED");
+	});
+
 	test("late entries are only drawn in their own round", () => {
 		const entries: Entry[] = [
 			...riders(4),

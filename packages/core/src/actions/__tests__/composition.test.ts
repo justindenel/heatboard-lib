@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { applyAction, type Action } from "..";
+import type { Bracket } from "../../model";
 import {
 	advanceHeat,
 	bracket,
@@ -31,6 +32,16 @@ const base = () =>
 			],
 		},
 	);
+
+const startedAuto = () =>
+	advanceHeat(
+		okBracket(base(), { type: "place", riderId: "late", heatId: "h4" }),
+		"h4",
+		"running",
+	);
+const manual = (b: Bracket): Bracket => ({ ...b, advancement: "manual" });
+const slotsOf = (b: Bracket, roundIndex: number, heatIndex: number) =>
+	b.rounds[roundIndex]?.heats[heatIndex]?.slots.map((s) => s.riderId);
 
 describe("place", () => {
 	test("appends by default and shares untouched structure", () => {
@@ -220,7 +231,9 @@ describe("move", () => {
 		expect(errorCode(b, move({ fromHeatId: "x" }))).toBe("UNKNOWN_HEAT");
 		expect(errorCode(b, move({ toHeatId: "x" }))).toBe("UNKNOWN_HEAT");
 		expect(errorCode(b, move({ riderId: "c" }))).toBe("RIDER_NOT_IN_HEAT");
-		expect(errorCode(b, move({ toHeatId: "h3" }))).toBe("CROSS_ROUND_MOVE");
+		expect(errorCode(startedAuto(), move({ toHeatId: "h3" }))).toBe(
+			"CROSS_ROUND_MOVE",
+		);
 		const tight = okBracket(b, {
 			type: "setMaxPerHeat",
 			roundId: "r1",
@@ -303,6 +316,207 @@ describe("move", () => {
 				{ allowCrossRoundMove: true },
 			),
 		).toBe("HEAT_FULL");
+	});
+});
+
+describe("cross-round move by bracket state", () => {
+	const toR2 = (riderId = "a"): Action => ({
+		type: "move",
+		riderId,
+		fromHeatId: "h1",
+		toHeatId: "h3",
+	});
+
+	test("before the start, in auto and manual, to a later or earlier round", () => {
+		for (const b of [base(), manual(base())]) {
+			const next = okBracket(b, toR2());
+			expect(slotsOf(next, 0, 0)).toEqual(["b"]);
+			expect(slotsOf(next, 1, 0)).toEqual(["a"]);
+			const back = okBracket(next, {
+				type: "move",
+				riderId: "a",
+				fromHeatId: "h3",
+				toHeatId: "h2",
+			});
+			expect(slotsOf(back, 0, 1)).toEqual(["c", "a"]);
+			expect(slotsOf(back, 1, 0)).toEqual([]);
+		}
+	});
+
+	test("after the start in manual, from a pending heat", () => {
+		const b = manual(startedAuto());
+		const next = okBracket(b, toR2());
+		expect(slotsOf(next, 0, 0)).toEqual(["b"]);
+		expect(slotsOf(next, 1, 0)).toEqual(["a"]);
+	});
+
+	test("after the start in auto it stays refused", () => {
+		expect(errorCode(startedAuto(), toR2())).toBe("CROSS_ROUND_MOVE");
+	});
+});
+
+describe("advance", () => {
+	const advance = (
+		over: Partial<Extract<Action, { type: "advance" }>> = {},
+	): Action => ({
+		type: "advance",
+		riderId: "a",
+		fromHeatId: "h1",
+		toHeatId: "h3",
+		...over,
+	});
+	const judgedManual = () => advanceHeat(manual(base()), "h1", "judged");
+
+	test("copies from a judged heat and keeps the source result", () => {
+		const b = judgedManual();
+		const next = okBracket(b, advance({ riderId: "b" }));
+		expect(slotsOf(next, 0, 0)).toEqual(["a", "b"]);
+		expect(next.rounds[0]?.heats[0]?.slots[1]).toEqual({
+			riderId: "b",
+			rank: 2,
+		});
+		expect(next.rounds[1]?.heats[0]?.slots).toEqual([
+			{ riderId: "b", rank: null },
+		]);
+	});
+
+	test("copies from a locked heat and respects the index", () => {
+		let b = manual(base());
+		b = okBracket(b, { type: "place", riderId: "late", heatId: "h3" });
+		b = advanceHeat(b, "h1", "locked");
+		const next = okBracket(b, advance({ index: 0 }));
+		expect(slotsOf(next, 1, 0)).toEqual(["a", "late"]);
+		expect(slotsOf(next, 0, 0)).toEqual(["a", "b"]);
+	});
+
+	test("refuses a running source", () => {
+		const b = advanceHeat(manual(base()), "h1", "running");
+		expect(errorCode(b, advance())).toBe("SOURCE_HEAT_RUNNING");
+	});
+
+	test("refuses a target that is not in a later round", () => {
+		const b = judgedManual();
+		expect(errorCode(b, advance({ toHeatId: "h2" }))).toBe("NOT_LATER_ROUND");
+		expect(errorCode(b, advance({ toHeatId: "h1" }))).toBe("NOT_LATER_ROUND");
+		expect(
+			errorCode(b, advance({ fromHeatId: "h3", toHeatId: "h1", riderId: "a" })),
+		).toBe("NOT_LATER_ROUND");
+	});
+
+	test("refuses unknown heats and a rider missing from the source", () => {
+		const b = judgedManual();
+		expect(errorCode(b, advance({ fromHeatId: "x" }))).toBe("UNKNOWN_HEAT");
+		expect(errorCode(b, advance({ toHeatId: "x" }))).toBe("UNKNOWN_HEAT");
+		expect(errorCode(b, advance({ riderId: "c" }))).toBe("RIDER_NOT_IN_HEAT");
+	});
+
+	test("from a pending heat it moves the rider", () => {
+		for (const b of [base(), manual(startedAuto())]) {
+			const next = okBracket(b, advance());
+			expect(slotsOf(next, 0, 0)).toEqual(["b"]);
+			expect(slotsOf(next, 1, 0)).toEqual(["a"]);
+		}
+	});
+
+	test("from a pending heat in a started auto bracket it follows move rules", () => {
+		expect(errorCode(startedAuto(), advance())).toBe("CROSS_ROUND_MOVE");
+		expect(
+			errorCode(startedAuto(), advance(), { allowCrossRoundMove: true }),
+		).toBe("ok");
+	});
+
+	test("target checks: full, started, rider already in the round", () => {
+		const b = judgedManual();
+		const tight = okBracket(b, {
+			type: "setMaxPerHeat",
+			roundId: "r2",
+			max: 1,
+		});
+		const full = okBracket(tight, {
+			type: "place",
+			riderId: "d",
+			heatId: "h3",
+		});
+		expect(errorCode(full, advance())).toBe("HEAT_FULL");
+		const runningTarget = okBracket(
+			okBracket(b, { type: "place", riderId: "late", heatId: "h3" }),
+			{ type: "setHeatStatus", heatId: "h3", status: "running" },
+		);
+		expect(errorCode(runningTarget, advance())).toBe("HEAT_STARTED");
+		const dup = okBracket(b, { type: "place", riderId: "a", heatId: "h4" });
+		expect(errorCode(dup, advance())).toBe("RIDER_ALREADY_IN_ROUND");
+	});
+});
+
+describe("lockPlacementOnceStarted", () => {
+	const lock = { lockPlacementOnceStarted: true };
+	const actions: Record<string, Action> = {
+		place: { type: "place", riderId: "d", heatId: "h2" },
+		moveAcrossHeats: {
+			type: "move",
+			riderId: "a",
+			fromHeatId: "h1",
+			toHeatId: "h2",
+		},
+		remove: { type: "remove", riderId: "a", heatId: "h1" },
+		advance: {
+			type: "advance",
+			riderId: "a",
+			fromHeatId: "h1",
+			toHeatId: "h3",
+		},
+		drawRound: { type: "drawRound", roundId: "r1", drawSeed: 1 },
+	};
+
+	test("refuses every placement gesture after the start in auto", () => {
+		for (const action of Object.values(actions)) {
+			expect(errorCode(startedAuto(), action, lock)).toBe("PLACEMENT_LOCKED");
+		}
+	});
+
+	test("does not touch reordering inside a heat nor ranking", () => {
+		const b = startedAuto();
+		expect(
+			errorCode(
+				b,
+				{
+					type: "move",
+					riderId: "b",
+					fromHeatId: "h1",
+					toHeatId: "h1",
+					index: 0,
+				},
+				lock,
+			),
+		).toBe("ok");
+		expect(errorCode(b, { type: "rankByPosition", heatId: "h4" }, lock)).toBe(
+			"ok",
+		);
+	});
+
+	test("accepts the gestures before the start", () => {
+		for (const key of ["place", "moveAcrossHeats", "remove", "advance"]) {
+			expect(errorCode(base(), actions[key] as Action, lock)).toBe("ok");
+		}
+		expect(errorCode(base(), actions.drawRound as Action, lock)).not.toBe(
+			"PLACEMENT_LOCKED",
+		);
+	});
+
+	test("accepts the gestures after the start in manual", () => {
+		const b = manual(startedAuto());
+		for (const key of ["place", "moveAcrossHeats", "remove", "advance"]) {
+			expect(errorCode(b, actions[key] as Action, lock)).toBe("ok");
+		}
+	});
+
+	test("changes nothing without the option", () => {
+		for (const key of ["place", "moveAcrossHeats", "remove"]) {
+			expect(errorCode(startedAuto(), actions[key] as Action)).toBe("ok");
+		}
+		expect(errorCode(startedAuto(), actions.advance as Action)).toBe(
+			"CROSS_ROUND_MOVE",
+		);
 	});
 });
 
