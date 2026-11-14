@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { applyAction } from "@heatboard/core";
+import type { Action, Bracket, Heat } from "@heatboard/core";
 import { BracketProvider, EntryPool, HeatboardProvider } from "../index";
+import { evaluateDrop } from "../dnd/evaluate";
 import { makeController } from "./helpers";
 import { makeRaceBracket } from "./admin-helpers";
 
@@ -157,5 +160,96 @@ describe("entry rounds", () => {
 		const group = screen.getByRole("heading", { name: "Round 2" });
 		expect(group.nextElementSibling!.textContent).toContain("Fay");
 		expect(screen.queryByRole("heading", { name: "Round 1" })).toBeNull();
+	});
+});
+
+describe("drops between the lists and the heats", () => {
+	function twoRounds(over: Partial<Bracket> = {}): Bracket {
+		const heat = (id: string, riderIds: string[]): Heat => ({
+			id,
+			status: "pending",
+			slots: riderIds.map((riderId) => ({ riderId, rank: null })),
+		});
+		return {
+			id: "b",
+			name: "Open",
+			entries: [
+				{ riderId: "a", displayName: "Ann" },
+				{ riderId: "b", displayName: "Bob" },
+			],
+			rounds: [
+				{
+					id: "r1",
+					name: "Round 1",
+					group: "main",
+					maxPerHeat: 2,
+					advancing: 1,
+					heats: [heat("h1", ["a"])],
+				},
+				{
+					id: "r2",
+					name: "Round 2",
+					group: "main",
+					maxPerHeat: 2,
+					advancing: 1,
+					heats: [heat("h2", [])],
+				},
+			],
+			links: [],
+			status: "draft",
+			visibility: "private",
+			...over,
+		};
+	}
+	const canApplyTo = (bracket: Bracket) => (action: Action) =>
+		applyAction(bracket, action, {});
+
+	it("places a rider of the list into a later round in manual advancement", () => {
+		const bracket = twoRounds({ advancement: "manual" });
+		const evaluation = evaluateDrop(
+			bracket,
+			canApplyTo(bracket),
+			{ kind: "pool", roundId: "r1", riderId: "b" },
+			{ kind: "end", heatId: "h2" },
+		);
+		expect(evaluation?.action).toEqual({
+			type: "place",
+			riderId: "b",
+			heatId: "h2",
+			index: 0,
+		});
+		expect(evaluation?.result.ok).toBe(true);
+		expect(evaluation?.copy).toBe(false);
+	});
+
+	it("takes a rider of a later round back to the list before the start", () => {
+		const bracket = twoRounds();
+		bracket.rounds[1]!.heats[0]!.slots = [{ riderId: "b", rank: null }];
+		for (const roundId of ["r1", "r2"]) {
+			const evaluation = evaluateDrop(
+				bracket,
+				canApplyTo(bracket),
+				{ kind: "slot", heatId: "h2", riderId: "b" },
+				{ kind: "pool", roundId },
+			);
+			expect(evaluation?.action).toEqual({
+				type: "remove",
+				riderId: "b",
+				heatId: "h2",
+			});
+			expect(evaluation?.result.ok).toBe(true);
+		}
+	});
+
+	it("lets the core refuse the removal of a rider of a running heat", () => {
+		const bracket = twoRounds({ status: "running" });
+		bracket.rounds[0]!.heats[0]!.status = "running";
+		const evaluation = evaluateDrop(
+			bracket,
+			canApplyTo(bracket),
+			{ kind: "slot", heatId: "h1", riderId: "a" },
+			{ kind: "pool", roundId: "r1" },
+		);
+		expect(evaluation?.result.ok).toBe(false);
 	});
 });

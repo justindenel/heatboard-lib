@@ -13,7 +13,7 @@ export interface DropEvaluation {
 	result: DropResult;
 	/** The drop would leave the bracket unchanged. */
 	noop: boolean;
-	/** A rider of a heat is added to a later round and stays where it is. */
+	/** The core accepted the drop and the rider also stays in the heat it came from. */
 	copy: boolean;
 }
 
@@ -92,9 +92,10 @@ export function buildAction(
 	const origin = findHeat(bracket, source.heatId);
 	if (origin && found.roundIndex > origin.roundIndex) {
 		return {
-			type: "place",
+			type: "advance",
 			riderId: source.riderId,
-			heatId: target.heatId,
+			fromHeatId: source.heatId,
+			toHeatId: target.heatId,
 			index,
 		};
 	}
@@ -107,11 +108,16 @@ export function buildAction(
 	};
 }
 
-/** Round whose list a rider returns to: the round where the rider enters, the first one by default. */
-function entryRoundOf(bracket: Bracket, riderId: string): string | undefined {
-	const entry = bracket.entries.find((e) => e.riderId === riderId);
-	if (!entry) return undefined;
-	return entry.entryRoundId ?? bracket.rounds[0]?.id;
+/** After the drop the rider still sits in the heat it was dragged from: the drop copied it. */
+function staysInSourceHeat(
+	source: DragSource,
+	target: DropTarget,
+	after: Bracket,
+): boolean {
+	if (source.kind !== "slot" || target.kind === "pool") return false;
+	if (source.heatId === target.heatId) return false;
+	const heat = findHeat(after, source.heatId)?.heat;
+	return heat?.slots.some((slot) => slot.riderId === source.riderId) ?? false;
 }
 
 /** Builds the action for a drop and asks the controller whether it would be accepted. */
@@ -123,43 +129,11 @@ export function evaluateDrop(
 ): DropEvaluation | null {
 	const action = buildAction(bracket, source, target);
 	if (!action) return null;
-	const sourceRound =
-		source.kind === "pool"
-			? source.roundId
-			: target.kind === "pool"
-				? findHeat(bracket, source.heatId)?.round.id
-				: undefined;
-	const targetRound =
-		target.kind === "pool"
-			? target.roundId
-			: findHeat(bracket, target.heatId)?.round.id;
-	const entryRound =
-		source.kind === "slot" && target.kind === "pool"
-			? entryRoundOf(bracket, source.riderId)
-			: undefined;
-	if (
-		(source.kind === "pool" || target.kind === "pool") &&
-		(sourceRound !== targetRound ||
-			(entryRound !== undefined && entryRound !== targetRound))
-	) {
-		return {
-			action,
-			result: {
-				ok: false,
-				error: {
-					code: "OTHER_POOL_ROUND",
-					message: "Entries can only be placed in the round of their list",
-				},
-			},
-			noop: false,
-			copy: false,
-		};
-	}
 	const result: ActionResult = canApply(action);
 	return {
 		action,
 		result,
 		noop: result.ok && result.bracket === bracket,
-		copy: source.kind === "slot" && action.type === "place",
+		copy: result.ok && staysInSourceHeat(source, target, result.bracket),
 	};
 }

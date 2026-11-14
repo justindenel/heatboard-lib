@@ -63,6 +63,34 @@ describe("errorMessage", () => {
 	});
 });
 
+describe("advancement and placement errors", () => {
+	const cases: [string, RegExp, RegExp][] = [
+		[
+			"ADVANCEMENT_LOCKED",
+			/plus revenir à l'avancée automatique/,
+			/automatic advancement cannot be restored/,
+		],
+		[
+			"NOT_LATER_ROUND",
+			/ne monte que vers un tour suivant/,
+			/only moves up to a later round/,
+		],
+		["SOURCE_HEAT_RUNNING", /attendez son résultat/, /wait for its result/],
+		[
+			"PLACEMENT_LOCKED",
+			/montent d'après les résultats/,
+			/move up from the results/,
+		],
+		["SEED_SLOTS_FULL", /têtes de série de ce tour/, /number of seeds/],
+	];
+	for (const [code, fr, en] of cases) {
+		it(`translates ${code}`, () => {
+			expect(errorMessage(labels.fr, { code })).toMatch(fr);
+			expect(errorMessage(labels.en, { code })).toMatch(en);
+		});
+	}
+});
+
 describe("round arrivals", () => {
 	it("agrees the verb and the seeds with the count", () => {
 		const { incoming } = labels.fr.formatRows;

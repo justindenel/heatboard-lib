@@ -641,7 +641,15 @@ const en: Labels = {
 		UNKNOWN_RIDER: "This rider is not registered.",
 		RIDER_NOT_IN_HEAT: "This rider is no longer in this heat.",
 		INVALID_ARGUMENT: "This position is not valid.",
-		OTHER_POOL_ROUND: "This is not the round this list is for.",
+		ADVANCEMENT_LOCKED:
+			"The bracket has started: automatic advancement cannot be restored.",
+		NOT_LATER_ROUND: "A rider only moves up to a later round.",
+		SOURCE_HEAT_RUNNING:
+			"This heat is running: wait for its result to move its riders up.",
+		PLACEMENT_LOCKED:
+			"The bracket started in automatic advancement: riders move up from the results.",
+		SEED_SLOTS_FULL:
+			"This round accepts no more direct entries. Raise its number of seeds in the format.",
 		SERVER_ERROR: "The server refused the change.",
 		UNKNOWN_ROUND: "This round no longer exists.",
 		HEAT_NOT_JUDGED: "Every source heat must be judged first.",
@@ -1405,7 +1413,15 @@ const fr: Labels = {
 		UNKNOWN_RIDER: "Ce rider n'est pas inscrit.",
 		RIDER_NOT_IN_HEAT: "Ce rider n'est plus dans ce heat.",
 		INVALID_ARGUMENT: "Cette position n'est pas valide.",
-		OTHER_POOL_ROUND: "Ce n'est pas le tour de cette liste.",
+		ADVANCEMENT_LOCKED:
+			"Le tableau a démarré : on ne peut plus revenir à l'avancée automatique.",
+		NOT_LATER_ROUND: "Un rider ne monte que vers un tour suivant.",
+		SOURCE_HEAT_RUNNING:
+			"Ce heat est en cours : attendez son résultat pour faire monter ses riders.",
+		PLACEMENT_LOCKED:
+			"Le tableau a démarré en avancée automatique : les riders montent d'après les résultats.",
+		SEED_SLOTS_FULL:
+			"Ce tour n'accepte pas plus d'entrées directes. Augmentez le nombre de têtes de série de ce tour dans le format.",
 		SERVER_ERROR: "Le serveur a refusé la modification.",
 		UNKNOWN_ROUND: "Ce tour n'existe plus.",
 		HEAT_NOT_JUDGED: "Tous les heats sources doivent être jugés.",
