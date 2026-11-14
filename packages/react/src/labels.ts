@@ -650,6 +650,8 @@ const en: Labels = {
 			"The bracket started in automatic advancement: riders move up from the results.",
 		SEED_SLOTS_FULL:
 			"This round accepts no more direct entries. Raise its number of seeds in the format.",
+		RIDER_ALREADY_PLACED:
+			"This rider is already placed in an earlier round: move them instead.",
 		SERVER_ERROR: "The server refused the change.",
 		UNKNOWN_ROUND: "This round no longer exists.",
 		HEAT_NOT_JUDGED: "Every source heat must be judged first.",
@@ -1422,6 +1424,8 @@ const fr: Labels = {
 			"Le tableau a démarré en avancée automatique : les riders montent d'après les résultats.",
 		SEED_SLOTS_FULL:
 			"Ce tour n'accepte pas plus d'entrées directes. Augmentez le nombre de têtes de série de ce tour dans le format.",
+		RIDER_ALREADY_PLACED:
+			"Ce rider est déjà placé dans un tour précédent : déplacez-le plutôt.",
 		SERVER_ERROR: "Le serveur a refusé la modification.",
 		UNKNOWN_ROUND: "Ce tour n'existe plus.",
 		HEAT_NOT_JUDGED: "Tous les heats sources doivent être jugés.",

@@ -2,7 +2,7 @@ import type { ActionResult } from "../errors";
 import { assignSeedRounds, orderByPriority } from "../format/seeds";
 import { editorFromPlan, planFromFormat } from "../format/plan";
 import type { FormatEditorState, FormatSettings } from "../format/model";
-import { makeSlot, mapHeats } from "../internal/bracket";
+import { entryRoundIndex, makeSlot, mapHeats } from "../internal/bracket";
 import { createRandom } from "../internal/random";
 import { fail, ok } from "../internal/result";
 import type { Bracket, Entry } from "../model";
@@ -43,13 +43,14 @@ function rebuildOf(bracket: Bracket): Rebuild | undefined {
 }
 
 /**
- * What `placeAll` would do: "rebuild" applies the stored format again for the entered riders
- * (entry count differs from the planned one, or a round takes seeds), "draw" deals the first round.
- * Undefined when there is nothing to place or placing is impossible (no format, a heat has started).
+ * What `placeAll` would do. "rebuild": regenerate every heat from the stored format for the current
+ * number of entries, because that number differs from the one the format was built for or because
+ * a round takes seeds. "draw": deal the entered riders over the existing first-round heats (always
+ * the case without a stored format). Undefined when there is no round, no entry, or a heat has
+ * started.
  */
 export function placeAllPlan(bracket: Bracket): "rebuild" | "draw" | undefined {
 	if (
-		!bracket.format ||
 		bracket.rounds.length === 0 ||
 		bracket.entries.length === 0 ||
 		hasStarted(bracket)
@@ -82,7 +83,30 @@ function checkNotStarted(bracket: Bracket): ActionResult | undefined {
 	return undefined;
 }
 
-/** Destructive: places every entered rider again, the whole bracket included (see `placeAllPlan`). */
+/**
+ * Removes from the rounds after the first every rider whose entry round is not the round it sits in:
+ * `drawRound` skips riders already placed in a later round, so the first-round entrants among them
+ * would otherwise not be drawn again.
+ */
+function clearLaterRounds(bracket: Bracket): Bracket {
+	const entryOf = new Map(
+		bracket.entries.map((e) => [e.riderId, entryRoundIndex(bracket, e)]),
+	);
+	return mapHeats(bracket, (heat, _round, roundIndex) => {
+		if (roundIndex === 0) return heat;
+		const slots = heat.slots.filter((s) => {
+			const entry = entryOf.get(s.riderId);
+			return entry === undefined || entry === roundIndex;
+		});
+		return slots.length === heat.slots.length ? heat : { ...heat, slots };
+	});
+}
+
+/**
+ * Destructive: discards the current placement and places the entered riders again, either by
+ * rebuilding every heat from the stored format or by drawing the first round (see `placeAllPlan`).
+ * Refused once a heat has started.
+ */
 export function placeAll(bracket: Bracket, drawSeed: number): ActionResult {
 	const refused = checkDrawSeed(drawSeed) ?? checkNotStarted(bracket);
 	if (refused) return refused;
@@ -94,7 +118,9 @@ export function placeAll(bracket: Bracket, drawSeed: number): ActionResult {
 			return applyFormat(bracket, rebuild.settings, drawSeed, rebuild.editor);
 		}
 	}
-	if (plan === "draw" && first) return drawRound(bracket, first.id, drawSeed);
+	if (plan === "draw" && first) {
+		return drawRound(clearLaterRounds(bracket), first.id, drawSeed);
+	}
 	if (bracket.entries.length === 0) return ok(bracket);
 	return fail(
 		"INVALID_ARGUMENT",

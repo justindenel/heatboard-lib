@@ -13,6 +13,7 @@ import {
 	run,
 	sampleBracket,
 	withRanks,
+	withRider,
 } from "../../__tests__/fixtures";
 
 const base = () =>
@@ -282,11 +283,7 @@ describe("move", () => {
 		expect(next.rounds[1]?.heats[0]?.slots.map((s) => s.riderId)).toEqual([
 			"a",
 		]);
-		const withB = okBracket(next, {
-			type: "place",
-			riderId: "b",
-			heatId: "h4",
-		});
+		const withB = withRider(next, "h4", "b");
 		expect(
 			errorCode(
 				withB,
@@ -641,7 +638,7 @@ describe("places held for the qualifiers", () => {
 					..."abcefg"
 						.split("")
 						.map((riderId) => ({ riderId, displayName: riderId })),
-					...["x", "y", "z"].map((riderId) => ({
+					...["x", "y", "z", "w", "v"].map((riderId) => ({
 						riderId,
 						displayName: riderId,
 						entryRoundId: "r2",
@@ -678,11 +675,11 @@ describe("places held for the qualifiers", () => {
 		const full = okBracket(
 			okBracket(
 				okBracket(okBracket(b, placeIn("x")), placeIn("z")),
-				placeIn("a"),
+				placeIn("w"),
 			),
-			placeIn("b"),
+			placeIn("v"),
 		);
-		expect(slotsOf(full, 1, 0)).toEqual(["x", "z", "a", "b"]);
+		expect(slotsOf(full, 1, 0)).toEqual(["x", "z", "w", "v"]);
 		expect(
 			errorCode(b, {
 				type: "move",
@@ -733,7 +730,7 @@ describe("places held for the qualifiers", () => {
 				fromHeatId: "h1",
 				toHeatId: "h3",
 			}),
-		).toBe("ok");
+		).toBe("HEAT_FULL");
 	});
 
 	test("a rider who already arrived in the round is not counted twice when it changes heat", () => {
@@ -802,5 +799,145 @@ describe("places held for the qualifiers", () => {
 			status: "judged",
 		});
 		expect(slotsOf(judged, 1, 0)).toEqual(["x", "a", "b"]);
+	});
+});
+
+describe("places held per feeder heat", () => {
+	const placeIn = (riderId: string, heatId = "h3"): Action => ({
+		type: "place",
+		riderId,
+		heatId,
+	});
+
+	test("a rider leaving the heat that would qualify it does not take its own place", () => {
+		const b = sampleBracket("published");
+		for (const type of ["advance", "move"] as const) {
+			expect(
+				errorCode(b, {
+					type,
+					riderId: "a",
+					fromHeatId: "h1",
+					toHeatId: "h3",
+				}),
+			).toBe("HEAT_FULL");
+		}
+	});
+
+	test("a feeder lends no more riders than its links deliver", () => {
+		const raw = withRider(
+			withRider(sampleBracket("published"), "h3", "a"),
+			"h3",
+			"b",
+		);
+		expect(errorCode(raw, placeIn("c"))).toBe("HEAT_FULL");
+		expect(errorCode(raw, placeIn("d"))).toBe("HEAT_FULL");
+		const one = withRider(sampleBracket("published"), "h3", "a");
+		expect(errorCode(one, placeIn("b"))).toBe("RIDER_ALREADY_PLACED");
+	});
+
+	test("riders from a heat that does not feed the target only take its free places", () => {
+		const b = bracket(
+			[
+				round("r1", [
+					heat(
+						"h0",
+						[
+							{ id: "i", rank: 1 },
+							{ id: "j", rank: 2 },
+							{ id: "k", rank: 3 },
+						],
+						{ status: "judged" },
+					),
+					heat("h1", ["a", "b", "c"]),
+					heat("h2", ["e", "f", "g"]),
+				]),
+				round("r2", [heat("h3")], { maxPerHeat: 5 }),
+			],
+			{
+				status: "running",
+				links: [
+					link("h1", 1, "h3"),
+					link("h1", 2, "h3"),
+					link("h2", 1, "h3"),
+					link("h2", 2, "h3"),
+				],
+			},
+		);
+		expect(awaitedOf(b, "h3")).toBe(4);
+		const one = okBracket(b, placeIn("i"));
+		expect(awaitedOf(one, "h3")).toBe(4);
+		expect(errorCode(one, placeIn("j"))).toBe("HEAT_FULL");
+		expect(errorCode(one, placeIn("k"))).toBe("HEAT_FULL");
+	});
+
+	test("a qualifier of a judged heat can be removed and placed again", () => {
+		const b = bracket(
+			[
+				round("r1", [
+					heat(
+						"h1",
+						[
+							{ id: "a", rank: 1 },
+							{ id: "b", rank: 2 },
+							{ id: "c", rank: 3 },
+							{ id: "d", rank: 4 },
+						],
+						{ status: "judged" },
+					),
+					heat("h2", ["e", "f", "g", "h"]),
+				]),
+				round("r2", [heat("h3", ["a", "b"])]),
+			],
+			{
+				status: "running",
+				links: [
+					link("h1", 1, "h3"),
+					link("h1", 2, "h3"),
+					link("h2", 1, "h3"),
+					link("h2", 2, "h3"),
+				],
+			},
+		);
+		const removed = okBracket(b, {
+			type: "remove",
+			riderId: "a",
+			heatId: "h3",
+		});
+		expect(errorCode(removed, placeIn("a"))).toBe("ok");
+		expect(errorCode(removed, placeIn("c"))).toBe("HEAT_FULL");
+	});
+});
+
+describe("place and riders already placed in an earlier round", () => {
+	const twoRounds = (status: "pending" | "running" | "judged" | "locked") =>
+		bracket(
+			[
+				round("r1", [
+					heat(
+						"h1",
+						[
+							{ id: "a", rank: 1 },
+							{ id: "b", rank: 2 },
+						],
+						{ status },
+					),
+				]),
+				round("r2", [heat("h2")]),
+			],
+			{ status: "running" },
+		);
+	const place: Action = { type: "place", riderId: "a", heatId: "h2" };
+
+	test("is refused while the earlier heat has not run, or is running", () => {
+		expect(errorCode(twoRounds("pending"), place)).toBe("RIDER_ALREADY_PLACED");
+		expect(errorCode(twoRounds("running"), place)).toBe("SOURCE_HEAT_RUNNING");
+	});
+
+	test("copies the rider once the earlier heat is judged or locked", () => {
+		for (const status of ["judged", "locked"] as const) {
+			const next = okBracket(twoRounds(status), place);
+			expect(slotsOf(next, 1, 0)).toEqual(["a"]);
+			expect(slotsOf(next, 0, 0)).toEqual(["a", "b"]);
+		}
 	});
 });

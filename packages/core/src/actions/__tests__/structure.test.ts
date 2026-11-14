@@ -229,7 +229,7 @@ describe("removal of heats and rounds fed by judged heats", () => {
 			riderId: "seed",
 			entryRoundId: null,
 		});
-		b = okBracket(b, { type: "place", riderId: "a", heatId: "h4" });
+		b = withRider(b, "h4", "a");
 		return advanceHeat(b, "h1", "judged");
 	};
 

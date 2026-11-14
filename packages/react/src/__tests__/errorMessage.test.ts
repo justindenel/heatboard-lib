@@ -82,6 +82,11 @@ describe("advancement and placement errors", () => {
 			/move up from the results/,
 		],
 		["SEED_SLOTS_FULL", /têtes de série de ce tour/, /number of seeds/],
+		[
+			"RIDER_ALREADY_PLACED",
+			/déjà placé dans un tour précédent/,
+			/already placed/,
+		],
 	];
 	for (const [code, fr, en] of cases) {
 		it(`translates ${code}`, () => {

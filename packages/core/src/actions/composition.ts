@@ -16,6 +16,7 @@ import {
 	awaitedRiders,
 	findHeat,
 	hasStarted,
+	sourceFlows,
 	type FoundHeat,
 } from "../queries";
 
@@ -113,12 +114,18 @@ export function checkRoom(
 	return undefined;
 }
 
-/** The links of the format would bring this rider to the heat: it is one of the riders the heat awaits. */
+/**
+ * True when the links would bring this rider into the heat, so it may take one of the places held
+ * for qualifiers. From a judged or locked feeder, only the rider at the linked rank qualifies; from a
+ * feeder not judged yet, any of its riders does, as long as fewer of them sit in the heat than its
+ * links will deliver.
+ */
 function isAwaitedIn(
 	bracket: Bracket,
 	riderId: string,
 	heatId: string,
 ): boolean {
+	const flows = sourceFlows(bracket, heatId);
 	return bracket.links.some((link) => {
 		if (link.to === "eliminated" || link.to.heatId !== heatId) return false;
 		const source = findHeat(bracket, link.from.heatId)?.heat;
@@ -127,10 +134,8 @@ function isAwaitedIn(
 		if (source.status === "judged" || source.status === "locked") {
 			return slot.rank === link.from.rank;
 		}
-		return (
-			link.from.rank <=
-			source.slots.filter((s) => s.status === undefined).length
-		);
+		const flow = flows.find((f) => f.heatId === source.id);
+		return flow !== undefined && flow.arrived < flow.expected;
 	});
 }
 
@@ -226,11 +231,44 @@ function checkSeedSlots(
 	);
 }
 
-export function place(
+/**
+ * Placing a rider in a later round leaves it in its earlier heat too, which is only meaningful once
+ * that heat is judged or locked. Refused while that heat is running (no result yet) or pending (the
+ * rider has to be moved out of it instead).
+ */
+function checkNotPlacedEarlier(
+	bracket: Bracket,
+	riderId: string,
+	to: FoundHeat,
+): ActionResult | undefined {
+	for (const round of bracket.rounds.slice(0, to.roundIndex)) {
+		for (const heat of round.heats) {
+			if (!heat.slots.some((s) => s.riderId === riderId)) continue;
+			if (heat.status === "running") {
+				return fail(
+					"SOURCE_HEAT_RUNNING",
+					`Heat "${heat.id}" is running and its riders cannot be brought up yet`,
+					{ heatId: heat.id },
+				);
+			}
+			if (heat.status === "pending") {
+				return fail(
+					"RIDER_ALREADY_PLACED",
+					`Rider "${riderId}" is already placed in heat "${heat.id}": move them instead`,
+					{ riderId, heatId: heat.id },
+				);
+			}
+		}
+	}
+	return undefined;
+}
+
+function placeIn(
 	bracket: Bracket,
 	riderId: string,
 	heatId: string,
 	index: number | undefined,
+	guardEarlier: boolean,
 ): ActionResult {
 	const found = findHeat(bracket, heatId);
 	if (!found) return unknownHeat(heatId);
@@ -240,6 +278,9 @@ export function place(
 		checkRoom(riderId, found) ??
 		checkAwaitedRoom(bracket, riderId, found) ??
 		checkSeedSlots(bracket, riderId, found) ??
+		(guardEarlier
+			? checkNotPlacedEarlier(bracket, riderId, found)
+			: undefined) ??
 		checkIndex(index, found.heat.slots.length);
 	if (refused) return refused;
 	const slot = makeSlot(riderId, { rank: null });
@@ -249,6 +290,15 @@ export function place(
 			slots: insertAt(found.heat.slots, slot, index),
 		}),
 	);
+}
+
+export function place(
+	bracket: Bracket,
+	riderId: string,
+	heatId: string,
+	index: number | undefined,
+): ActionResult {
+	return placeIn(bracket, riderId, heatId, index, true);
 }
 
 export function removeSlot(heat: Heat, slot: HeatSlot): Heat {
@@ -335,9 +385,12 @@ export function move(
 				)
 			: undefined;
 	if (fullOrDuplicate) return fullOrDuplicate;
+	// Check awaited places and seed slots as if the rider had already left its source heat: when that
+	// heat feeds the target, the rider must no longer count as one of the riders the target awaits.
+	const without = replaceHeat(bracket, from, removeSlot(from.heat, slot));
 	const badIndex =
-		checkAwaitedRoom(bracket, riderId, to) ??
-		checkSeedSlots(bracket, riderId, to, from) ??
+		checkAwaitedRoom(without, riderId, to) ??
+		checkSeedSlots(without, riderId, to, from) ??
 		checkIndex(index, to.heat.slots.length);
 	if (badIndex) return badIndex;
 
@@ -396,5 +449,5 @@ export function advance(
 	if (from.heat.status === "pending") {
 		return move(bracket, riderId, fromHeatId, toHeatId, index, options);
 	}
-	return place(bracket, riderId, toHeatId, index);
+	return placeIn(bracket, riderId, toHeatId, index, false);
 }

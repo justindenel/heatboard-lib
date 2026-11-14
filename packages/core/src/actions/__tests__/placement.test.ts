@@ -242,14 +242,56 @@ describe("placeAll", () => {
 		const empty = formatted(planOf(24), []);
 		expect(placeAllPlan(empty)).toBeUndefined();
 		expect(okBracket(empty, placeAll())).toBe(empty);
-		const noFormat = bracket([round("r1", [heat("h1")])], {
-			entries: entries(2),
-		});
-		expect(placeAllPlan(noFormat)).toBeUndefined();
-		expect(errorCode(noFormat, placeAll())).toBe("INVALID_ARGUMENT");
+		const noRound = bracket([], { entries: entries(2) });
+		expect(placeAllPlan(noRound)).toBeUndefined();
+		expect(errorCode(noRound, placeAll())).toBe("INVALID_ARGUMENT");
 		const started = startedAuto(mismatched());
 		expect(placeAllPlan(started)).toBeUndefined();
 		expect(errorCode(started, placeAll())).toBe("ROUND_STARTED");
+	});
+
+	test("a bracket without format is drawn on its first round", () => {
+		const b = bracket(
+			[round("r1", [heat("h1"), heat("h2")]), round("r2", [heat("h3")])],
+			{ entries: entries(6), status: "published" },
+		);
+		expect(placeAllPlan(b)).toBe("draw");
+		const next = okBracket(b, placeAll());
+		expect(ridersOf(next, 0).flat()).toHaveLength(6);
+		expect(ridersOf(next, 1)).toEqual([[]]);
+	});
+
+	describe("draw mode puts everybody back", () => {
+		const twoRounds = (): Bracket =>
+			bracket(
+				[round("r1", [heat("h1"), heat("h2")]), round("r2", [heat("h3")])],
+				{
+					status: "published",
+					entries: [
+						...entries(5),
+						{ riderId: "late", displayName: "Late", entryRoundId: "r2" },
+					],
+				},
+			);
+
+		test("a rider placed by hand in a later round returns to the first round", () => {
+			let b = okBracket(twoRounds(), {
+				type: "place",
+				riderId: "p01",
+				heatId: "h3",
+			});
+			b = okBracket(b, { type: "place", riderId: "late", heatId: "h3" });
+			expect(placeAllPlan(b)).toBe("draw");
+			const next = okBracket(b, placeAll());
+			expect(ridersOf(next, 0).flat().sort()).toEqual([
+				"p01",
+				"p02",
+				"p03",
+				"p04",
+				"p05",
+			]);
+			expect(ridersOf(next, 1)).toEqual([["late"]]);
+		});
 	});
 
 	test("refuses a draw seed that is not an integer", () => {

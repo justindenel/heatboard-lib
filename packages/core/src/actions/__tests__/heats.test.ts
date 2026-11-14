@@ -10,6 +10,7 @@ import {
 	round,
 	run,
 	sampleBracket,
+	withRider,
 } from "../../__tests__/fixtures";
 
 const published = () => sampleBracket("published");
@@ -117,8 +118,8 @@ describe("setHeatStatus", () => {
 
 	test("reopening flags later heats that hold one of its riders without being a link target", () => {
 		let b = published();
-		b = okBracket(b, { type: "place", riderId: "a", heatId: "h4" });
-		b = okBracket(b, { type: "place", riderId: "e", heatId: "h4" });
+		b = withRider(b, "h4", "a");
+		b = withRider(b, "h4", "e");
 		b = okBracket(b, {
 			type: "place",
 			riderId: "seed",
@@ -142,11 +143,7 @@ describe("setHeatStatus", () => {
 	});
 
 	test("normal forward transitions do not flag anything", () => {
-		let b = okBracket(sampleBracket(), {
-			type: "place",
-			riderId: "a",
-			heatId: "h3",
-		});
+		let b = withRider(sampleBracket(), "h3", "a");
 		b = advanceHeat(b, "h1", "locked");
 		expect(b.rounds[1]?.heats[0]?.needsReview).toBeUndefined();
 	});

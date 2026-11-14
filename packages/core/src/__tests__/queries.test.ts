@@ -312,6 +312,39 @@ describe("awaitedRiders", () => {
 		expect(awaitedRiders(crowded, "t")).toBe(1);
 	});
 
+	test("riders from a heat that does not feed the target are deducted from no feeder", () => {
+		const b = bracket(
+			[
+				round("r1", [
+					heat("s1", ["a", "b"]),
+					heat("s2", ["e", "f"]),
+					heat("other", ["x", "y"]),
+				]),
+				round("r2", [heat("t", ["x", "y", "a"])]),
+			],
+			{
+				links: [
+					link("s1", 1, "t"),
+					link("s1", 2, "t"),
+					link("s2", 1, "t"),
+					link("s2", 2, "t"),
+				],
+			},
+		);
+		expect(awaitedRiders(b, "t")).toBe(3);
+	});
+
+	test("a feeder is credited at most for the links it delivers", () => {
+		const b = bracket(
+			[
+				round("r1", [heat("s1", ["a", "b", "c"])]),
+				round("r2", [heat("t", ["a", "b", "c"])]),
+			],
+			{ links: [link("s1", 1, "t"), link("s1", 2, "t")] },
+		);
+		expect(awaitedRiders(b, "t")).toBe(0);
+	});
+
 	describe("on a generated bracket", () => {
 		const generated = (name: string, riders: number): Bracket => {
 			const format = formatPresets.find((p) => p.name === name);

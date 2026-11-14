@@ -21,11 +21,14 @@ function flagged(heat: Heat): Heat {
 }
 
 /**
- * Puts the qualifiers of a judged heat into the heats its links lead to, all
- * or nothing. A rider already in the target heat is left alone, so placing twice
- * changes nothing. A rider already in another heat of the target round stays
- * where it is and the planned target is flagged for review; a full target
- * grows by one place and is flagged too, so judging is never blocked by room.
+ * Puts the qualifiers of a judged heat into the heats its links lead to, all or nothing. Judging is
+ * never blocked by a target heat:
+ * - a rider already in the target heat is left alone, so placing twice changes nothing;
+ * - a rider already in another heat of the target round stays there, and the target is flagged
+ *   for review;
+ * - a target that has started or is locked is left unchanged and flagged for review;
+ * - a full target still receives the rider: the round's maximum per heat grows by one and the
+ *   target is flagged for review.
  */
 export function placeQualifiers(
 	bracket: Bracket,
@@ -62,6 +65,10 @@ export function placeQualifiers(
 		let target = findHeat(current, link.to.heatId);
 		if (!slot || !target) continue;
 		if (target.heat.slots.some((s) => s.riderId === slot.riderId)) continue;
+		if (checkComposable(target)) {
+			current = replaceHeat(current, target, flagged(target.heat));
+			continue;
+		}
 		if (roundHasRider(target.round, slot.riderId)) {
 			current = replaceHeat(current, target, flagged(target.heat));
 			continue;
@@ -80,7 +87,6 @@ export function placeQualifiers(
 		}
 		const refused =
 			checkEntryRound(current, slot.riderId, target) ??
-			checkComposable(target) ??
 			checkRoom(slot.riderId, target);
 		if (refused) return refused;
 		const added: Heat = {

@@ -6,6 +6,7 @@ import {
 	run,
 	sampleBracket,
 	withRanks,
+	withRider,
 } from "../../__tests__/fixtures";
 
 const running = (): Bracket => {
@@ -244,7 +245,7 @@ describe("removeEntry", () => {
 	test("removes the entry and its slots from pending heats, renumbering ranks", () => {
 		let b = sampleBracket();
 		b = withRanks(b, "h1", ["a", "b", "c", "d"]);
-		b = okBracket(b, { type: "place", riderId: "b", heatId: "h3" });
+		b = withRider(b, "h3", "b");
 		const next = okBracket(b, { type: "removeEntry", riderId: "b" });
 		expect(next.entries.some((e) => e.riderId === "b")).toBe(false);
 		expect(next.rounds[0]?.heats[0]?.slots).toEqual([

@@ -176,14 +176,26 @@ export function hasStarted(bracket: Bracket): boolean {
 }
 
 /**
- * Riders the links of the format still have to bring into a heat: the places its feeders will fill
- * minus the riders already there who played an earlier round. Riders who entered the heat's round
- * directly are in neither term; a heat without incoming link awaits nobody.
+ * One feeder heat of a target heat: `expected` counts its links to the target that will deliver a
+ * rider, `arrived` how many of its riders already sit in the target (never more than `expected`).
  */
-export function awaitedRiders(bracket: Bracket, heatId: string): number {
-	const found = findHeat(bracket, heatId);
-	if (!found) return 0;
-	let expected = 0;
+export interface SourceFlow {
+	heatId: string;
+	expected: number;
+	arrived: number;
+}
+
+/**
+ * For each feeder heat with links to `heatId`: how many of those links will deliver a rider, and how
+ * many of the feeder's riders already sit in `heatId`. A link delivers when its rank holds a rider
+ * with no participant status (judged or locked feeder), or when the feeder has at least that many
+ * riders with no participant status (feeder not judged yet). Riders from other heats count for no
+ * feeder.
+ */
+export function sourceFlows(bracket: Bracket, heatId: string): SourceFlow[] {
+	const target = findHeat(bracket, heatId)?.heat;
+	if (!target) return [];
+	const expectedOf = new Map<string, number>();
 	for (const link of bracket.links) {
 		if (link.to === "eliminated" || link.to.heatId !== heatId) continue;
 		const source = findHeat(bracket, link.from.heatId)?.heat;
@@ -193,16 +205,30 @@ export function awaitedRiders(bracket: Bracket, heatId: string): number {
 		const delivers = decided
 			? open.some((s) => s.rank === link.from.rank)
 			: link.from.rank <= open.length;
-		if (delivers) expected++;
+		expectedOf.set(
+			source.id,
+			(expectedOf.get(source.id) ?? 0) + (delivers ? 1 : 0),
+		);
 	}
-	const earlier = new Set(
-		bracket.rounds
-			.slice(0, found.roundIndex)
-			.flatMap((round) => round.heats)
-			.flatMap((heat) => heat.slots.map((s) => s.riderId)),
+	const inTarget = new Set(target.slots.map((s) => s.riderId));
+	return [...expectedOf].map(([sourceId, expected]) => {
+		const source = findHeat(bracket, sourceId)?.heat;
+		const present =
+			source?.slots.filter((s) => inTarget.has(s.riderId)).length ?? 0;
+		return { heatId: sourceId, expected, arrived: Math.min(expected, present) };
+	});
+}
+
+/**
+ * Number of riders the links will still bring into the heat: for each feeder heat, the riders its
+ * links will deliver minus those of its riders already in the heat. Direct entries and riders from
+ * heats that do not feed this one do not lower the count; a heat with no incoming link awaits nobody.
+ */
+export function awaitedRiders(bracket: Bracket, heatId: string): number {
+	return sourceFlows(bracket, heatId).reduce(
+		(sum, flow) => sum + flow.expected - flow.arrived,
+		0,
 	);
-	const arrived = found.heat.slots.filter((s) => earlier.has(s.riderId)).length;
-	return Math.max(0, expected - arrived);
 }
 
 /** Scoring that applies to a heat: its snapshot once started, else the bracket's current one. */
