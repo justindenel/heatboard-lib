@@ -3,6 +3,7 @@ import { version } from "../package.json";
 export const VERSION: string = version;
 
 export type {
+	AdvancementMode,
 	Bracket,
 	BracketStatus,
 	Entry,
@@ -47,11 +48,13 @@ export type {
 	QualificationChange,
 } from "./lifecycle/advancement";
 export {
+	advancementOf,
 	currentRaceFormat,
 	findHeat,
 	defaultOpenRoundId,
 	getQualified,
 	hasRunningHeat,
+	hasStarted,
 	heatClock,
 	heatNumbers,
 	getRiderPath,

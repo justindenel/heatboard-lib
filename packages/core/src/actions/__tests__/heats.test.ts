@@ -5,6 +5,7 @@ import {
 	bracket,
 	errorCode,
 	heat,
+	link,
 	okBracket,
 	round,
 	run,
@@ -397,5 +398,93 @@ describe("setHeatStatus startedAt", () => {
 	test("accepts an offset time", () => {
 		const b = start(published(), "2026-03-01T12:00:00+02:00");
 		expect(heatH1(b)?.startedAt).toBe("2026-03-01T12:00:00+02:00");
+	});
+});
+
+describe("manual advancement", () => {
+	const build = (): Bracket =>
+		bracket(
+			[
+				round("r1", [
+					heat(
+						"h1",
+						[
+							{ id: "a", rank: 1 },
+							{ id: "b", rank: 2 },
+						],
+						{ status: "running" },
+					),
+				]),
+				round("r2", [heat("h2", [])]),
+			],
+			{
+				links: [link("h1", 1, "h2")],
+				entries: [
+					{ riderId: "a", displayName: "a" },
+					{ riderId: "b", displayName: "b" },
+				],
+				status: "running",
+			},
+		);
+
+	const withMode = (mode?: "manual") => {
+		const b = build();
+		return mode ? { ...b, advancement: mode } : b;
+	};
+	const judge = {
+		type: "setHeatStatus",
+		heatId: "h1",
+		status: "judged",
+	} as const;
+	const reopen = {
+		type: "setHeatStatus",
+		heatId: "h1",
+		status: "running",
+	} as const;
+	const targetRiders = (b: Bracket) =>
+		b.rounds[1]?.heats[0]?.slots.map((s) => s.riderId);
+
+	test("judging a heat places nobody", () => {
+		const judged = okBracket(withMode("manual"), judge);
+		expect(judged.rounds[0]?.heats[0]?.status).toBe("judged");
+		expect(targetRiders(judged)).toEqual([]);
+	});
+
+	test("reopening a heat removes nobody", () => {
+		const placed = {
+			...okBracket(withMode("manual"), judge),
+			rounds: [
+				okBracket(withMode("manual"), judge).rounds[0]!,
+				round("r2", [heat("h2", ["a"])]),
+			],
+		};
+		const reopened = okBracket(placed, reopen);
+		expect(reopened.rounds[0]?.heats[0]?.status).toBe("running");
+		expect(targetRiders(reopened)).toEqual(["a"]);
+	});
+
+	test("automatic mode still places and withdraws", () => {
+		const judged = okBracket(withMode(), judge);
+		expect(targetRiders(judged)).toEqual(["a"]);
+		expect(targetRiders(okBracket(judged, reopen))).toEqual([]);
+	});
+
+	test("downstream protection and review flag are unchanged in manual mode", () => {
+		const b = withMode("manual");
+		const judged = okBracket(b, judge);
+		const withDownstream = {
+			...judged,
+			rounds: [
+				judged.rounds[0]!,
+				round("r2", [heat("h2", ["a"], { status: "running" })]),
+			],
+		};
+		expect(errorCode(withDownstream, reopen)).toBe("DOWNSTREAM_STARTED");
+		const pendingDownstream = {
+			...judged,
+			rounds: [judged.rounds[0]!, round("r2", [heat("h2", ["a"])])],
+		};
+		const reopened = okBracket(pendingDownstream, reopen);
+		expect(reopened.rounds[1]?.heats[0]?.needsReview).toBe(true);
 	});
 });

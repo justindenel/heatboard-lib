@@ -1,4 +1,5 @@
 import type {
+	AdvancementMode,
 	Bracket,
 	Heat,
 	HeatSlot,
@@ -9,6 +10,7 @@ import type {
 	Round,
 	ViewerDisplay,
 } from "./model";
+import { isStarted } from "./internal/bracket";
 import { deepEqual } from "./internal/equal";
 import type { ScoringConfig } from "./scoring/model";
 
@@ -161,6 +163,16 @@ export function provisionalOrder(heat: Heat): string[] {
 /** Judging mode in force for the bracket; absent means `free`. */
 export function judgingModeOf(bracket: Bracket): JudgingMode {
 	return bracket.judgingMode ?? "free";
+}
+
+/** Advancement mode in force for the bracket; absent means `auto`. */
+export function advancementOf(bracket: Bracket): AdvancementMode {
+	return bracket.advancement ?? "auto";
+}
+
+/** At least one heat has left `pending`. */
+export function hasStarted(bracket: Bracket): boolean {
+	return bracket.rounds.some((round) => round.heats.some(isStarted));
 }
 
 /** Scoring that applies to a heat: its snapshot once started, else the bracket's current one. */

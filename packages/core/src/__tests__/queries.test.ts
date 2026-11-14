@@ -1,10 +1,12 @@
 import { describe, expect, test } from "vitest";
 import {
+	advancementOf,
 	defaultOpenRoundId,
 	findHeat,
 	getQualified,
 	getRiderPath,
 	hasRunningHeat,
+	hasStarted,
 	heatClock,
 	numberedHeats,
 	pickLiveHeat,
@@ -210,5 +212,23 @@ describe("round and status queries", () => {
 		expect(pickLiveHeat(rounds)?.heatIndex).toBe(2);
 		expect(pickNextHeat(rounds)?.heatIndex).toBe(1);
 		expect(pickLiveHeat([])).toBeUndefined();
+	});
+});
+
+describe("advancement queries", () => {
+	test("advancementOf defaults to auto and follows the stored value", () => {
+		const b = bracket([round("r1", [heat("h1")])]);
+		expect(advancementOf(b)).toBe("auto");
+		expect(advancementOf({ ...b, advancement: "manual" })).toBe("manual");
+	});
+
+	test("hasStarted is true as soon as one heat has left pending", () => {
+		const pending = bracket([round("r1", [heat("h1"), heat("h2")])]);
+		expect(hasStarted(pending)).toBe(false);
+		expect(hasStarted(bracket([round("r1", [])]))).toBe(false);
+		const started = bracket([
+			round("r1", [heat("h1"), heat("h2", ["a"], { status: "running" })]),
+		]);
+		expect(hasStarted(started)).toBe(true);
 	});
 });

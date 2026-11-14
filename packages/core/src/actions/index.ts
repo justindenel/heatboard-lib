@@ -5,7 +5,7 @@ import {
 	removeRound,
 	type NewRound,
 } from "./structure";
-import { setLinks, updateRound } from "./advancement";
+import { setAdvancement, setLinks, updateRound } from "./advancement";
 import {
 	renameBracket,
 	renameHeat,
@@ -41,6 +41,7 @@ import { withChain } from "../internal/chain";
 import { fail, ok } from "../internal/result";
 import type { ActionResult } from "../errors";
 import type {
+	AdvancementMode,
 	Bracket,
 	BracketStatus,
 	Entry,
@@ -136,6 +137,7 @@ export type Action =
 	| { type: "removeHeat"; heatId: string; confirm?: boolean }
 	| { type: "setViewerDisplay"; display: ViewerDisplay }
 	| { type: "setLinks"; links: Link[]; confirm?: boolean }
+	| { type: "setAdvancement"; mode: AdvancementMode }
 	| {
 			type: "setRaceFormat";
 			/** Applies to heats that start afterwards only; a running or judged heat keeps its own. */
@@ -313,6 +315,8 @@ function dispatch(
 			return setViewerDisplay(bracket, action.display);
 		case "setLinks":
 			return setLinks(bracket, action.links, action.confirm ?? false);
+		case "setAdvancement":
+			return setAdvancement(bracket, action.mode);
 		case "setRaceFormat":
 			return setRaceFormat(bracket, action);
 		case "pauseRace":

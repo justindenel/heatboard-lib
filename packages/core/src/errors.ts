@@ -44,7 +44,8 @@ export type BracketErrorCode =
 	| "DOUBLE_UNAVAILABLE"
 	| "FORMAT_LOCKED"
 	| "NOTHING_TO_SIMULATE"
-	| "SIMULATE_WHILE_RUNNING";
+	| "SIMULATE_WHILE_RUNNING"
+	| "ADVANCEMENT_LOCKED";
 
 export interface BracketError {
 	code: BracketErrorCode;

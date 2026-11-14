@@ -8,6 +8,8 @@ export type BracketStatus =
 export type Visibility = "private" | "public";
 /** `free`: each judge creates their own rides; `headJudge`: the head judge announces shared rides. */
 export type JudgingMode = "free" | "headJudge";
+/** `auto`: judging a heat places its qualifiers in the next heats; `manual`: judging moves nobody. */
+export type AdvancementMode = "auto" | "manual";
 
 /** What the spectator view shows beyond rank and total; omitted fields follow the scoring method. */
 export interface ViewerDisplay {
@@ -99,6 +101,8 @@ export interface Bracket {
 	chain?: RaceChain;
 	/** Absent means `free`. */
 	judgingMode?: JudgingMode;
+	/** Absent means `auto`. */
+	advancement?: AdvancementMode;
 	viewerDisplay?: ViewerDisplay;
 	/** Settings the rounds were generated from, with the draw seed used and the editor state, if any. */
 	format?: {
