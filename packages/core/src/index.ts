@@ -23,6 +23,7 @@ export type { ActionResult, BracketError, BracketErrorCode } from "./errors";
 export type { BracketOptions } from "./options";
 export { applyAction } from "./actions";
 export type { Action } from "./actions";
+export { placeAllPlan } from "./actions/placement";
 export { hasManualRanks } from "./actions/judging";
 export type { HeatData } from "./lifecycle/scoring";
 export { schedule, settleChain } from "./lifecycle/chain";

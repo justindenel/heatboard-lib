@@ -48,7 +48,8 @@ export type BracketErrorCode =
 	| "ADVANCEMENT_LOCKED"
 	| "NOT_LATER_ROUND"
 	| "SOURCE_HEAT_RUNNING"
-	| "PLACEMENT_LOCKED";
+	| "PLACEMENT_LOCKED"
+	| "SEED_SLOTS_FULL";
 
 export interface BracketError {
 	code: BracketErrorCode;

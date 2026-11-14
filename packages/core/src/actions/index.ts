@@ -25,6 +25,7 @@ import { advance, move, place, remove } from "./composition";
 import { drawRound } from "./draw";
 import { closeDoubleElimination, openDoubleElimination } from "./double";
 import { applyFormat } from "./format";
+import { placeAll, placeRest } from "./placement";
 import type { DoubleFinalMode } from "../format/double";
 import type { FormatEditorState, FormatSettings } from "../format/model";
 import type { DoubleRoundNames } from "../format/names";
@@ -75,6 +76,10 @@ export type Action =
 	  }
 	| { type: "remove"; riderId: string; heatId: string }
 	| { type: "drawRound"; roundId: string; drawSeed: number }
+	/** Destructive: discards the current placement and places every entered rider (see `placeAllPlan`). */
+	| { type: "placeAll"; drawSeed: number }
+	/** Places the riders that sit in no heat; nobody already placed moves. */
+	| { type: "placeRest"; drawSeed: number }
 	| { type: "setRanks"; heatId: string; riderIds: string[]; override?: boolean }
 	| { type: "reorderSlots"; heatId: string; riderIds: string[] }
 	| { type: "rankByPosition"; heatId: string }
@@ -173,25 +178,23 @@ function allowedWhenValidated(action: Action): boolean {
 	return VALIDATED_ALLOWED.has(action.type);
 }
 
+const PLACEMENT_CHANGING: ReadonlySet<Action["type"]> = new Set([
+	"place",
+	"remove",
+	"advance",
+	"drawRound",
+	"placeAll",
+	"placeRest",
+]);
+
 /** Gestures that change who sits in which heat; a reorder inside one heat is not one. */
 function changesPlacement(bracket: Bracket, action: Action): boolean {
-	switch (action.type) {
-		case "place":
-		case "remove":
-		case "advance":
-		case "drawRound":
-			return true;
-		case "move": {
-			const from = findHeat(bracket, action.fromHeatId);
-			const to = findHeat(bracket, action.toHeatId);
-			if (!from || !to) return false;
-			return (
-				from.roundIndex !== to.roundIndex || from.heatIndex !== to.heatIndex
-			);
-		}
-		default:
-			return false;
-	}
+	if (PLACEMENT_CHANGING.has(action.type)) return true;
+	if (action.type !== "move") return false;
+	const from = findHeat(bracket, action.fromHeatId);
+	const to = findHeat(bracket, action.toHeatId);
+	if (!from || !to) return false;
+	return from.roundIndex !== to.roundIndex || from.heatIndex !== to.heatIndex;
 }
 
 /** "finished" follows the heats: reached when the last required heat is judged, left when one is reopened. */
@@ -273,6 +276,10 @@ function dispatch(
 			);
 		case "drawRound":
 			return drawRound(bracket, action.roundId, action.drawSeed);
+		case "placeAll":
+			return placeAll(bracket, action.drawSeed);
+		case "placeRest":
+			return placeRest(bracket, action.drawSeed);
 		case "remove":
 			return remove(bracket, action.riderId, action.heatId);
 		case "setRanks":

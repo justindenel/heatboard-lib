@@ -156,6 +156,76 @@ function checkAwaitedRoom(
 	);
 }
 
+/**
+ * Number of seeds the stored format lets the round take directly (0 when it sets none). Undefined
+ * without a stored format or when the format has no round with this id.
+ */
+export function seedSlotsOfRound(
+	bracket: Bracket,
+	roundId: string,
+): number | undefined {
+	const round = bracket.format?.settings.rounds.find((r) => r.key === roundId);
+	return round ? (round.seedSlots ?? 0) : undefined;
+}
+
+/** Riders sitting in a heat of the round and in no heat of an earlier round; `except` is left out. */
+export function directEntries(
+	bracket: Bracket,
+	roundIndex: number,
+	except?: string,
+): string[] {
+	const earlier = new Set(
+		bracket.rounds
+			.slice(0, roundIndex)
+			.flatMap((r) => r.heats.flatMap((h) => h.slots.map((s) => s.riderId))),
+	);
+	const direct = new Set<string>();
+	for (const heat of bracket.rounds[roundIndex]?.heats ?? []) {
+		for (const slot of heat.slots) {
+			if (slot.riderId !== except && !earlier.has(slot.riderId)) {
+				direct.add(slot.riderId);
+			}
+		}
+	}
+	return [...direct];
+}
+
+/**
+ * Automatic advancement with a stored format only: a later round takes at most `seedSlots` riders
+ * who sit in none of its earlier rounds. A rider still sitting in an earlier heat (a qualifier
+ * copied up) or moving inside the round takes no such place. `from` is the heat the rider leaves:
+ * a rider moved out of an earlier round does take a place.
+ */
+function checkSeedSlots(
+	bracket: Bracket,
+	riderId: string,
+	to: FoundHeat,
+	from?: FoundHeat,
+): ActionResult | undefined {
+	if (advancementOf(bracket) !== "auto" || to.roundIndex === 0) {
+		return undefined;
+	}
+	if (from?.roundIndex === to.roundIndex) return undefined;
+	const seedSlots = seedSlotsOfRound(bracket, to.round.id);
+	if (seedSlots === undefined) return undefined;
+	const playedBefore = bracket.rounds
+		.slice(0, to.roundIndex)
+		.some((r) =>
+			r.heats.some(
+				(h) => h !== from?.heat && h.slots.some((s) => s.riderId === riderId),
+			),
+		);
+	if (playedBefore) return undefined;
+	if (directEntries(bracket, to.roundIndex, riderId).length < seedSlots) {
+		return undefined;
+	}
+	return fail(
+		"SEED_SLOTS_FULL",
+		`Round "${to.round.id}" already has its ${seedSlots} direct entries`,
+		{ roundId: to.round.id, seedSlots },
+	);
+}
+
 export function place(
 	bracket: Bracket,
 	riderId: string,
@@ -169,6 +239,7 @@ export function place(
 		checkComposable(found) ??
 		checkRoom(riderId, found) ??
 		checkAwaitedRoom(bracket, riderId, found) ??
+		checkSeedSlots(bracket, riderId, found) ??
 		checkIndex(index, found.heat.slots.length);
 	if (refused) return refused;
 	const slot = makeSlot(riderId, { rank: null });
@@ -266,6 +337,7 @@ export function move(
 	if (fullOrDuplicate) return fullOrDuplicate;
 	const badIndex =
 		checkAwaitedRoom(bracket, riderId, to) ??
+		checkSeedSlots(bracket, riderId, to, from) ??
 		checkIndex(index, to.heat.slots.length);
 	if (badIndex) return badIndex;
 
