@@ -13,6 +13,7 @@ import type { Bracket, Heat, HeatSlot } from "../model";
 import type { BracketOptions } from "../options";
 import {
 	advancementOf,
+	awaitedRiders,
 	findHeat,
 	hasStarted,
 	type FoundHeat,
@@ -112,6 +113,49 @@ export function checkRoom(
 	return undefined;
 }
 
+/** The links of the format would bring this rider to the heat: it is one of the riders the heat awaits. */
+function isAwaitedIn(
+	bracket: Bracket,
+	riderId: string,
+	heatId: string,
+): boolean {
+	return bracket.links.some((link) => {
+		if (link.to === "eliminated" || link.to.heatId !== heatId) return false;
+		const source = findHeat(bracket, link.from.heatId)?.heat;
+		const slot = source?.slots.find((s) => s.riderId === riderId);
+		if (!source || !slot || slot.status !== undefined) return false;
+		if (source.status === "judged" || source.status === "locked") {
+			return slot.rank === link.from.rank;
+		}
+		return (
+			link.from.rank <=
+			source.slots.filter((s) => s.status === undefined).length
+		);
+	});
+}
+
+/**
+ * Automatic advancement only: a place the links will fill for a qualifier cannot be taken by hand.
+ * A rider the heat awaits takes its own reserved place, so it is not counted twice.
+ */
+function checkAwaitedRoom(
+	bracket: Bracket,
+	riderId: string,
+	found: FoundHeat,
+): ActionResult | undefined {
+	if (advancementOf(bracket) !== "auto") return undefined;
+	const { round, heat } = found;
+	if (isAwaitedIn(bracket, riderId, heat.id)) return undefined;
+	if (heat.slots.length + awaitedRiders(bracket, heat.id) < round.maxPerHeat) {
+		return undefined;
+	}
+	return fail(
+		"HEAT_FULL",
+		`Heat "${heat.id}" holds or awaits ${round.maxPerHeat} riders`,
+		{ heatId: heat.id, max: round.maxPerHeat },
+	);
+}
+
 export function place(
 	bracket: Bracket,
 	riderId: string,
@@ -124,6 +168,7 @@ export function place(
 		checkEntryRound(bracket, riderId, found) ??
 		checkComposable(found) ??
 		checkRoom(riderId, found) ??
+		checkAwaitedRoom(bracket, riderId, found) ??
 		checkIndex(index, found.heat.slots.length);
 	if (refused) return refused;
 	const slot = makeSlot(riderId, { rank: null });
@@ -219,7 +264,9 @@ export function move(
 				)
 			: undefined;
 	if (fullOrDuplicate) return fullOrDuplicate;
-	const badIndex = checkIndex(index, to.heat.slots.length);
+	const badIndex =
+		checkAwaitedRoom(bracket, riderId, to) ??
+		checkIndex(index, to.heat.slots.length);
 	if (badIndex) return badIndex;
 
 	const moved = makeSlot(riderId, {

@@ -16,10 +16,16 @@ function targetHeatIds(bracket: Bracket, heatId: string): string[] {
 	return [...ids];
 }
 
+function flagged(heat: Heat): Heat {
+	return { ...heat, needsReview: true };
+}
+
 /**
  * Puts the qualifiers of a judged heat into the heats its links lead to, all
- * or nothing. A rider already anywhere in the target round is left alone, so
- * placing twice changes nothing and a manual placement is not overridden.
+ * or nothing. A rider already in the target heat is left alone, so placing twice
+ * changes nothing. A rider already in another heat of the target round stays
+ * where it is and the planned target is flagged for review; a full target
+ * grows by one place and is flagged too, so judging is never blocked by room.
  */
 export function placeQualifiers(
 	bracket: Bracket,
@@ -55,9 +61,13 @@ export function placeQualifiers(
 		);
 		let target = findHeat(current, link.to.heatId);
 		if (!slot || !target) continue;
-		if (roundHasRider(target.round, slot.riderId)) continue;
-		// The links come from the stored format, which decided this rider goes there: the heat grows.
-		if (current.format && target.heat.slots.length >= target.round.maxPerHeat) {
+		if (target.heat.slots.some((s) => s.riderId === slot.riderId)) continue;
+		if (roundHasRider(target.round, slot.riderId)) {
+			current = replaceHeat(current, target, flagged(target.heat));
+			continue;
+		}
+		let needsReview = false;
+		if (target.heat.slots.length >= target.round.maxPerHeat) {
 			const roundIndex = target.roundIndex;
 			current = {
 				...current,
@@ -66,6 +76,7 @@ export function placeQualifiers(
 				),
 			};
 			target = findHeat(current, link.to.heatId) ?? target;
+			needsReview = true;
 		}
 		const refused =
 			checkEntryRound(current, slot.riderId, target) ??
@@ -73,7 +84,7 @@ export function placeQualifiers(
 			checkRoom(slot.riderId, target);
 		if (refused) return refused;
 		const added: Heat = {
-			...target.heat,
+			...(needsReview ? flagged(target.heat) : target.heat),
 			slots: [...target.heat.slots, { riderId: slot.riderId, rank: null }],
 		};
 		current = replaceHeat(current, target, added);

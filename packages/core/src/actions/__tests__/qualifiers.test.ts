@@ -84,6 +84,7 @@ describe("judging a heat places its qualifiers", () => {
 		});
 		b = to(b, "h1", "judged");
 		expect(ridersOf(b, "h3")).toEqual(["c", "a"]);
+		expect(b.rounds[1]?.heats[0]).not.toHaveProperty("needsReview");
 	});
 
 	test("locking a judged heat changes nothing more", () => {
@@ -126,7 +127,7 @@ describe("judging refused because of a target heat", () => {
 		expect(!result.ok && result.error.code).toBe("HEAT_STARTED");
 	});
 
-	test("a locked target, a full target", () => {
+	test("a locked target", () => {
 		expect(
 			errorCode(twoRounds(heat("h2", [], { status: "locked" })), {
 				type: "setHeatStatus",
@@ -134,9 +135,25 @@ describe("judging refused because of a target heat", () => {
 				status: "judged",
 			}),
 		).toBe("HEAT_LOCKED");
-		const full = twoRounds(heat("h2", ["z"]));
-		const result = judge(full);
-		expect(!result.ok && result.error.code).toBe("HEAT_FULL");
+	});
+
+	test("a full target grows by one place and is flagged, with or without a stored format", () => {
+		const stored = twoRounds(heat("h2", ["z"]));
+		const withFormat: Bracket = {
+			...stored,
+			format: { settings: {} as never, drawSeed: 1 },
+		};
+		for (const full of [stored, withFormat]) {
+			const result = judge(full);
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+			const [h2, h3] = result.bracket.rounds[1]!.heats;
+			expect(result.bracket.rounds[1]!.maxPerHeat).toBe(2);
+			expect(h2!.slots.map((s) => s.riderId)).toEqual(["z", "a"]);
+			expect(h2!.needsReview).toBe(true);
+			expect(h3!.slots.map((s) => s.riderId)).toEqual(["b"]);
+			expect(h3).not.toHaveProperty("needsReview");
+		}
 	});
 
 	test("a rider already in another heat of the target round is skipped, the other links still apply", () => {
@@ -152,6 +169,8 @@ describe("judging refused because of a target heat", () => {
 		const [h2, h3] = result.bracket.rounds[1]!.heats;
 		expect(h2!.slots.map((s) => s.riderId)).toEqual(["b"]);
 		expect(h3!.slots.map((s) => s.riderId)).toEqual(["a"]);
+		expect(h2!.needsReview).toBe(true);
+		expect(h3).not.toHaveProperty("needsReview");
 	});
 
 	test("a rider who enters later, an unknown target, a backward link", () => {

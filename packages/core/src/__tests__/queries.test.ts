@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
+import { formatPresets } from "../format/presets";
+import type { Bracket } from "../model";
 import {
 	advancementOf,
+	awaitedRiders,
 	defaultOpenRoundId,
 	findHeat,
 	getQualified,
@@ -14,7 +17,7 @@ import {
 	roundProgress,
 	roundState,
 } from "../queries";
-import { bracket, heat, round } from "./fixtures";
+import { bracket, heat, link, okBracket, round } from "./fixtures";
 
 const fixture = () =>
 	bracket([
@@ -230,5 +233,137 @@ describe("advancement queries", () => {
 			round("r1", [heat("h1"), heat("h2", ["a"], { status: "running" })]),
 		]);
 		expect(hasStarted(started)).toBe(true);
+	});
+});
+
+describe("awaitedRiders", () => {
+	const two = (sources: ReturnType<typeof heat>[], target = heat("t")) =>
+		bracket([round("r1", sources), round("r2", [target])], {
+			links: [
+				link("s1", 1, "t"),
+				link("s1", 2, "t"),
+				link("s2", 1, "t"),
+				link("s2", 2, "t"),
+				link("s2", 4, "t"),
+			],
+		});
+
+	test("counts the ranks an unjudged source can still deliver", () => {
+		const b = two([
+			heat("s1", ["a", "b", "c", "d"]),
+			heat("s2", ["e", "f", "g"]),
+		]);
+		expect(awaitedRiders(b, "t")).toBe(4);
+	});
+
+	test("an unjudged source counts only its riders without status", () => {
+		const b = two([
+			heat("s1", ["a", "b"]),
+			heat("s2", ["e", { id: "f", status: "DNS" }]),
+		]);
+		expect(awaitedRiders(b, "t")).toBe(3);
+	});
+
+	test("a judged source delivers the rider holding the rank, unless it has a status", () => {
+		const judged = { status: "judged" as const };
+		const b = two([
+			heat(
+				"s1",
+				[
+					{ id: "a", rank: 1 },
+					{ id: "b", rank: 2, status: "DSQ" },
+					{ id: "c", rank: 3 },
+				],
+				judged,
+			),
+			heat(
+				"s2",
+				[
+					{ id: "e", rank: 1 },
+					{ id: "f", rank: 2 },
+				],
+				{ status: "locked" },
+			),
+		]);
+		expect(awaitedRiders(b, "t")).toBe(3);
+	});
+
+	test("a heat without incoming link awaits nobody, nor does an unknown heat", () => {
+		const b = two([heat("s1", ["a", "b"]), heat("s2", ["e"])]);
+		expect(awaitedRiders(b, "s1")).toBe(0);
+		expect(awaitedRiders(b, "nope")).toBe(0);
+	});
+
+	test("riders who entered the round directly are in neither term", () => {
+		const b = two(
+			[heat("s1", ["a", "b"]), heat("s2", ["e", "f"])],
+			heat("t", ["x"]),
+		);
+		expect(awaitedRiders(b, "t")).toBe(4);
+	});
+
+	test("riders already arrived are deducted, never below zero", () => {
+		const sources = [heat("s1", ["a", "b"]), heat("s2", ["e", "f"])];
+		expect(awaitedRiders(two(sources, heat("t", ["a", "x"])), "t")).toBe(3);
+		expect(
+			awaitedRiders(two(sources, heat("t", ["a", "b", "e", "f", "a2"])), "t"),
+		).toBe(0);
+		const crowded = two(sources, heat("t", ["a", "b", "e"]));
+		expect(awaitedRiders(crowded, "t")).toBe(1);
+	});
+
+	describe("on a generated bracket", () => {
+		const generated = (name: string, riders: number): Bracket => {
+			const format = formatPresets.find((p) => p.name === name);
+			if (!format) throw new Error(`Unknown preset ${name}`);
+			const entries = Array.from({ length: riders }, (_, i) => ({
+				riderId: `p${i + 1}`,
+				displayName: `Rider ${i + 1}`,
+			}));
+			return okBracket(bracket([], { entries, status: "published" }), {
+				type: "applyFormat",
+				format,
+				drawSeed: 1,
+			});
+		};
+		const judge = (b: Bracket, heatId: string): Bracket => {
+			let current = okBracket(b, {
+				type: "setHeatStatus",
+				heatId,
+				status: "running",
+			});
+			current = okBracket(current, { type: "rankByPosition", heatId });
+			return okBracket(current, {
+				type: "setHeatStatus",
+				heatId,
+				status: "judged",
+			});
+		};
+
+		test.each([
+			["Single elimination", 16],
+			["Single elimination", 14],
+			["Chained repechage", 16],
+			["Chained repechage", 13],
+		])(
+			"%s with %i riders: never more than a heat holds, nothing awaited once the first round is judged",
+			(name, riders) => {
+				const b = generated(name, riders);
+				for (const r of b.rounds) {
+					for (const h of r.heats) {
+						expect(h.slots.length + awaitedRiders(b, h.id)).toBeLessThanOrEqual(
+							r.maxPerHeat,
+						);
+					}
+				}
+				const judged = b.rounds[0]!.heats.reduce(
+					(current, h) => (h.slots.length > 0 ? judge(current, h.id) : current),
+					b,
+				);
+				for (const h of judged.rounds[1]!.heats) {
+					expect(awaitedRiders(judged, h.id)).toBe(0);
+				}
+			},
+		);
 	});
 });

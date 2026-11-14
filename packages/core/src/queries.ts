@@ -175,6 +175,36 @@ export function hasStarted(bracket: Bracket): boolean {
 	return bracket.rounds.some((round) => round.heats.some(isStarted));
 }
 
+/**
+ * Riders the links of the format still have to bring into a heat: the places its feeders will fill
+ * minus the riders already there who played an earlier round. Riders who entered the heat's round
+ * directly are in neither term; a heat without incoming link awaits nobody.
+ */
+export function awaitedRiders(bracket: Bracket, heatId: string): number {
+	const found = findHeat(bracket, heatId);
+	if (!found) return 0;
+	let expected = 0;
+	for (const link of bracket.links) {
+		if (link.to === "eliminated" || link.to.heatId !== heatId) continue;
+		const source = findHeat(bracket, link.from.heatId)?.heat;
+		if (!source) continue;
+		const open = source.slots.filter((s) => s.status === undefined);
+		const decided = source.status === "judged" || source.status === "locked";
+		const delivers = decided
+			? open.some((s) => s.rank === link.from.rank)
+			: link.from.rank <= open.length;
+		if (delivers) expected++;
+	}
+	const earlier = new Set(
+		bracket.rounds
+			.slice(0, found.roundIndex)
+			.flatMap((round) => round.heats)
+			.flatMap((heat) => heat.slots.map((s) => s.riderId)),
+	);
+	const arrived = found.heat.slots.filter((s) => earlier.has(s.riderId)).length;
+	return Math.max(0, expected - arrived);
+}
+
 /** Scoring that applies to a heat: its snapshot once started, else the bracket's current one. */
 export function scoringOf(
 	bracket: Bracket,

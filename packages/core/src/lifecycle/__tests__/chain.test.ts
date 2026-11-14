@@ -304,3 +304,68 @@ describe("schedule", () => {
 		expect(result.delaySec).toBe(6 * 60);
 	});
 });
+
+describe("manual advancement", () => {
+	const manualRace = (): Bracket =>
+		startH1({ ...published(), advancement: "manual" });
+	const judge = (b: Bracket, heatId: string): Bracket =>
+		okBracket(okBracket(b, { type: "rankByPosition", heatId }), {
+			type: "setHeatStatus",
+			heatId,
+			status: "judged",
+		});
+	const bring = (b: Bracket, riderId: string, fromHeatId: string): Bracket =>
+		okBracket(b, { type: "advance", riderId, fromHeatId, toHeatId: "h3" });
+
+	test("waits while qualifiers are still expected, starts once the last one is brought up", () => {
+		let b = settleChain(manualRace(), at(30));
+		expect(heatOf(b, "h2").status).toBe("running");
+		expect(b.chain).toEqual({ waiting: true });
+		b = judge(judge(b, "h1"), "h2");
+		expect(heatOf(b, "h3").slots).toEqual([]);
+
+		for (const [riderId, from] of [
+			["a", "h1"],
+			["b", "h1"],
+			["e", "h2"],
+		] as const) {
+			b = bring(b, riderId, from);
+		}
+		expect(schedule(b, at(40)).next).toMatchObject({
+			heatId: "h3",
+			ridersKnown: false,
+		});
+		b = settleChain(b, at(40));
+		expect(b.chain).toEqual({ waiting: true });
+		expect(heatOf(b, "h3").status).toBe("pending");
+
+		b = bring(b, "f", "h2");
+		expect(schedule(b, at(41)).next?.ridersKnown).toBe(true);
+		b = settleChain(b, at(41));
+		expect(b.chain).toEqual({ break: { startedAt: at(41), durationSec: 120 } });
+		b = settleChain(b, at(43));
+		expect(heatOf(b, "h3")).toMatchObject({
+			status: "running",
+			startedAt: at(43),
+		});
+	});
+
+	test("a heat without incoming link starts as usual", () => {
+		const b = settleChain(manualRace(), at(13));
+		expect(heatOf(b, "h2")).toMatchObject({
+			status: "running",
+			startedAt: at(12),
+		});
+	});
+
+	test("with automatic advancement one known rider is enough", () => {
+		const b = settleChain(withRider(startH1(), "h3"), at(30));
+		expect(heatOf(b, "h3").status).toBe("running");
+		const waiting = settleChain(
+			withRider(startH1({ ...published(), advancement: "manual" }), "h3"),
+			at(30),
+		);
+		expect(heatOf(waiting, "h3").status).toBe("pending");
+		expect(waiting.chain).toEqual({ waiting: true });
+	});
+});

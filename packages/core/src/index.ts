@@ -49,6 +49,7 @@ export type {
 } from "./lifecycle/advancement";
 export {
 	advancementOf,
+	awaitedRiders,
 	currentRaceFormat,
 	findHeat,
 	defaultOpenRoundId,

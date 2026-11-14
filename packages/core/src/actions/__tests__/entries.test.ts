@@ -218,11 +218,11 @@ describe("updateEntry", () => {
 		expect(
 			errorCode(b, { type: "updateEntry", riderId: "a", entryRoundId: "r2" }),
 		).toBe("BEFORE_ENTRY_ROUND");
-		const placed = okBracket(b, {
-			type: "place",
-			riderId: "seed",
-			heatId: "h3",
-		});
+		// Manual advancement: the places of h3 are not held for the qualifiers.
+		const placed = okBracket(
+			{ ...b, advancement: "manual" },
+			{ type: "place", riderId: "seed", heatId: "h3" },
+		);
 		expect(
 			errorCode(placed, {
 				type: "updateEntry",
