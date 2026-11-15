@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from "react";
 import type { Action, Entry } from "@heatboard/core";
 import { RefusableButton, parseSeed, useAdmin } from "./admin";
-import { partProps, useBoardSettings, type EntryFormProps } from "./settings";
+import { partProps, useBoardSettings } from "./settings";
 
 /** Registers a new entry with a display name and an optional seed. */
-export function EntryForm({ entryRoundId }: EntryFormProps) {
+export function EntryForm() {
 	const settings = useBoardSettings();
 	const { allowed, refusal, run, labels } = useAdmin();
 	const [name, setName] = useState("");
@@ -17,11 +17,7 @@ export function EntryForm({ entryRoundId }: EntryFormProps) {
 
 	const probe: Action = {
 		type: "addEntry",
-		entry: {
-			riderId: "",
-			displayName: "",
-			...(entryRoundId !== undefined && { entryRoundId }),
-		},
+		entry: { riderId: "", displayName: "" },
 	};
 	const reason = refusal(probe);
 
@@ -36,7 +32,6 @@ export function EntryForm({ entryRoundId }: EntryFormProps) {
 		}
 		const entry: Entry = { riderId: settings.createId(), displayName };
 		if (parsed !== null) entry.seed = parsed;
-		if (entryRoundId !== undefined) entry.entryRoundId = entryRoundId;
 		if (run({ type: "addEntry", entry }).ok) {
 			setName("");
 			setSeed("");

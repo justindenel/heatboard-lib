@@ -68,27 +68,9 @@ export function buildFromFormat(
 	plannedRiders = 0,
 ): BuildFormatResult {
 	const entryIndexes = new Map<string, number>();
-	for (const entry of bracket.entries) {
-		const index =
-			entry.entryRoundId === undefined
-				? 0
-				: format.rounds.findIndex((r) => r.key === entry.entryRoundId);
-		if (index === -1) {
-			return {
-				ok: false,
-				code: "UNKNOWN_ROUND",
-				riderId: entry.riderId,
-				entryRoundId: entry.entryRoundId as string,
-			};
-		}
-		entryIndexes.set(entry.riderId, index);
-	}
+	for (const entry of bracket.entries) entryIndexes.set(entry.riderId, 0);
 	const seedSlots = format.rounds.map((r) => r.seedSlots ?? 0);
-	const seedRounds = assignSeedRounds(
-		bracket.entries.filter((e) => e.entryRoundId === undefined),
-		seedSlots,
-		drawSeed,
-	);
+	const seedRounds = assignSeedRounds(bracket.entries, seedSlots, drawSeed);
 	for (const [riderId, index] of seedRounds) entryIndexes.set(riderId, index);
 	// Places of a seed that no entered rider fills yet: planned riders keep their round sized.
 	const missingSeedSlots = seedSlots.map((places, i) =>

@@ -425,11 +425,6 @@ export interface EditableNameProps {
 	onSubmit: (name: string) => void;
 }
 
-export interface EntryFormProps {
-	/** Entry round given to new entries; unset for the first round. */
-	entryRoundId?: string;
-}
-
 export interface ConfirmDialogProps {
 	action: Action;
 	/** Set when the core asked for the confirmation; unset for confirmations the interface adds itself. */
@@ -481,7 +476,7 @@ export interface BoardComponents {
 	RoundStructureControls: ComponentType<RoundStructureControlsProps>;
 	HeatStructureControls: ComponentType<HeatStructureControlsProps>;
 	EditableName: ComponentType<EditableNameProps>;
-	EntryForm: ComponentType<EntryFormProps>;
+	EntryForm: ComponentType;
 	ConfirmDialog: ComponentType<ConfirmDialogProps>;
 }
 

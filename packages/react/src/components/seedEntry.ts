@@ -2,7 +2,7 @@ import type { Bracket } from "@heatboard/core";
 
 /**
  * Whether the rider sits in `roundId` as a seed that joins it directly: the format gives that
- * round seed places, the rider has no entry round of their own and no earlier round holds them.
+ * round seed places and no earlier round holds the rider.
  */
 export function isSeedEntry(
 	bracket: Bracket,
@@ -16,7 +16,7 @@ export function isSeedEntry(
 	)?.seedSlots;
 	if (!places) return false;
 	const entry = bracket.entries.find((e) => e.riderId === riderId);
-	if (!entry || entry.entryRoundId !== undefined) return false;
+	if (!entry) return false;
 	return !bracket.rounds
 		.slice(0, roundIndex)
 		.some((r) =>

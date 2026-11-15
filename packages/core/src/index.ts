@@ -3,6 +3,7 @@ import { version } from "../package.json";
 export const VERSION: string = version;
 
 export type {
+	AdvancementMode,
 	Bracket,
 	BracketStatus,
 	Entry,
@@ -22,6 +23,7 @@ export type { ActionResult, BracketError, BracketErrorCode } from "./errors";
 export type { BracketOptions } from "./options";
 export { applyAction } from "./actions";
 export type { Action } from "./actions";
+export { placeAllPlan } from "./actions/placement";
 export { hasManualRanks } from "./actions/judging";
 export type { HeatData } from "./lifecycle/scoring";
 export { schedule, settleChain } from "./lifecycle/chain";
@@ -47,11 +49,14 @@ export type {
 	QualificationChange,
 } from "./lifecycle/advancement";
 export {
+	advancementOf,
+	awaitedRiders,
 	currentRaceFormat,
 	findHeat,
 	defaultOpenRoundId,
 	getQualified,
 	hasRunningHeat,
+	hasStarted,
 	heatClock,
 	heatNumbers,
 	getRiderPath,

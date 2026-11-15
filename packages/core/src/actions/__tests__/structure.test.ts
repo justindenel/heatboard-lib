@@ -97,11 +97,7 @@ describe("addRound", () => {
 
 describe("removeRound", () => {
 	test("removes the round and the links that reference its heats", () => {
-		const b = okBracket(sampleBracket(), {
-			type: "updateEntry",
-			riderId: "seed",
-			entryRoundId: null,
-		});
+		const b = sampleBracket();
 		const next = okBracket(b, { type: "removeRound", roundId: "r2" });
 		expect(next.rounds.map((r) => r.id)).toEqual(["r1", "r3"]);
 		expect(next.links).toEqual([
@@ -224,12 +220,7 @@ describe("removeHeat", () => {
 describe("removal of heats and rounds fed by judged heats", () => {
 	/** h1 is judged and feeds h3; a also sits in h4. */
 	const afterH1 = () => {
-		let b = okBracket(sampleBracket(), {
-			type: "updateEntry",
-			riderId: "seed",
-			entryRoundId: null,
-		});
-		b = okBracket(b, { type: "place", riderId: "a", heatId: "h4" });
+		const b = withRider(sampleBracket(), "h4", "a");
 		return advanceHeat(b, "h1", "judged");
 	};
 
@@ -270,17 +261,5 @@ describe("removal of heats and rounds fed by judged heats", () => {
 	test("links from pending heats only are dropped without confirmation", () => {
 		const b = afterH1();
 		expect(errorCode(b, { type: "removeHeat", heatId: "h4" })).toBe("ok");
-	});
-});
-
-describe("removeRound and entry rounds", () => {
-	test("refuses a round that is some rider's entry round", () => {
-		const b = sampleBracket();
-		const result = run(b, { type: "removeRound", roundId: "r2" });
-		expect(!result.ok && result.error).toMatchObject({
-			code: "ROUND_REFERENCED",
-			details: { roundId: "r2", riderId: "seed" },
-		});
-		expect(errorCode(b, { type: "removeRound", roundId: "r3" })).toBe("ok");
 	});
 });

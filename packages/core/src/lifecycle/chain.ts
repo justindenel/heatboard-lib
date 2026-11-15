@@ -2,7 +2,13 @@ import { setHeatStatus } from "../actions/heats";
 import { mapHeats } from "../internal/bracket";
 import { withChain } from "../internal/chain";
 import type { Bracket, Heat } from "../model";
-import { numberedHeats, raceFormatOf, type NumberedHeat } from "../queries";
+import {
+	advancementOf,
+	awaitedRiders,
+	numberedHeats,
+	raceFormatOf,
+	type NumberedHeat,
+} from "../queries";
 
 /** Most recently started heat: the one the chain follows. */
 function latestStarted(heats: NumberedHeat[]): NumberedHeat | undefined {
@@ -18,6 +24,14 @@ function latestStarted(heats: NumberedHeat[]): NumberedHeat | undefined {
 		}
 	}
 	return latest;
+}
+
+/** The heat can start: it has riders and, with manual advancement, no qualifier is still expected in it. */
+function ridersReady(bracket: Bracket, heat: Heat): boolean {
+	if (heat.slots.length === 0) return false;
+	return (
+		advancementOf(bracket) === "auto" || awaitedRiders(bracket, heat.id) === 0
+	);
 }
 
 /** First pending heat after `head` (the first one overall without head): the chain never skips an empty heat. */
@@ -77,7 +91,7 @@ function advance(bracket: Bracket, nowMs: number): Bracket {
 
 	const next = nextAfter(heats, head);
 	if (!next || next.round.optional) return current;
-	const ridersKnown = next.heat.slots.length > 0;
+	const ridersKnown = ridersReady(current, next.heat);
 	const breakSec = current.timing?.breakSec ?? 0;
 
 	let planned = chain.break;
@@ -134,7 +148,10 @@ export type SchedulePhase = "heat" | "break" | "paused" | "waiting" | "idle";
 export interface ScheduleNext {
 	heatId: string;
 	number: number;
-	/** No rider is known yet: the chain waits for the qualifiers. */
+	/**
+	 * False while the heat has no rider yet or, with manual advancement, still awaits qualifiers to be
+	 * brought up: the chain waits instead of starting it.
+	 */
 	ridersKnown: boolean;
 	/** Exact estimated start, ISO; absent while paused, waiting or when nothing is going on. */
 	startsAt?: string;
@@ -169,7 +186,7 @@ export function schedule(bracket: Bracket, now: string): Schedule {
 	const nextBase: ScheduleNext | undefined = nextFound && {
 		heatId: nextFound.heat.id,
 		number: nextFound.number,
-		ridersKnown: nextFound.heat.slots.length > 0,
+		ridersKnown: ridersReady(settled, nextFound.heat),
 	};
 	const result: Schedule = {
 		phase: "idle",

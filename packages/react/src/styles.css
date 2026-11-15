@@ -890,21 +890,6 @@
 	font-style: italic;
 }
 
-:where(.hb-pool__zone) {
-	display: flex;
-	flex-direction: column;
-	gap: var(--hb-space-2);
-	padding: var(--hb-space-1);
-	border-radius: var(--hb-radius-sm);
-}
-
-:where(.hb-pool__group) {
-	margin: var(--hb-space-2) 0 0;
-	color: var(--hb-color-text-muted);
-	font-size: 0.8125rem;
-	font-weight: 600;
-}
-
 :where(.hb-pool__list) {
 	display: flex;
 	flex-wrap: wrap;

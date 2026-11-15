@@ -11,7 +11,6 @@ import {
 	useSensors,
 	type Active,
 	type Announcements,
-	type Collision,
 	type CollisionDetection,
 	type DragEndEvent,
 	type DragOverEvent,
@@ -82,14 +81,7 @@ const collisionDetection: CollisionDetection = (args) => {
 		const container = droppableContainers.find((c) => c.id === collision.id);
 		return container !== undefined && dataKind(container) === "pool";
 	});
-	// Lists of later entry rounds sit inside the pool: the innermost one wins.
-	const area = (id: Collision["id"]) => {
-		const rect = droppableContainers.find((c) => c.id === id)?.rect.current;
-		return rect ? rect.width * rect.height : Infinity;
-	};
-	if (overPool.length > 0) {
-		return overPool.sort((a, b) => area(a.id) - area(b.id));
-	}
+	if (overPool.length > 0) return overPool;
 	return closestCenter({
 		...candidates,
 		droppableContainers: droppableContainers.filter(

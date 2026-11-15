@@ -1,4 +1,6 @@
 import {
+	advancementOf,
+	awaitedRiders,
 	findHeat,
 	type Action,
 	type Bracket,
@@ -35,14 +37,16 @@ function refOf(bracket: Bracket, heatId: string): HeatRef | undefined {
 
 /**
  * Where a rider ranked `rank` in a heat goes, read from the bracket links.
- * Undefined when no link of the heat leads to another heat (a final, a small final): the stored
- * format still records explicit "eliminated" links there, which must not read as an elimination.
+ * Undefined in manual advancement, where judging moves nobody, and when no link of the heat leads to
+ * another heat (a final, a small final): the stored format still records explicit "eliminated"
+ * links for such heats, which must not read as an elimination.
  */
 export function slotDestination(
 	bracket: Bracket,
 	heatId: string,
 	rank: number,
 ): SlotDestination | undefined {
+	if (advancementOf(bracket) === "manual") return undefined;
 	const outgoing = bracket.links.filter((link) => link.from.heatId === heatId);
 	if (outgoing.every((link) => link.to === "eliminated")) return undefined;
 	const link = outgoing.find((l) => l.from.rank === rank);
@@ -76,6 +80,7 @@ function sizeKnown(bracket: Bracket, source: HeatRef): boolean {
  * and start from a heat whose riders are not placed yet, and whose rank that heat can reach.
  */
 export function slotOrigins(bracket: Bracket, heatId: string): SlotOrigin[] {
+	if (advancementOf(bracket) === "manual") return [];
 	const origins: SlotOrigin[] = [];
 	for (const link of bracket.links) {
 		if (link.to === "eliminated" || link.to.heatId !== heatId) continue;
@@ -104,7 +109,9 @@ export function openPlacesAtStart(bracket: Bracket, action: Action): number {
 	if (action.type !== "setHeatStatus" || action.status !== "running") return 0;
 	const found = findHeat(bracket, action.heatId);
 	if (!found || found.heat.status !== "pending") return 0;
-	return slotOrigins(bracket, action.heatId).length;
+	return advancementOf(bracket) === "manual"
+		? awaitedRiders(bracket, action.heatId)
+		: slotOrigins(bracket, action.heatId).length;
 }
 
 /** Short reference to a heat: the round name, then the heat unless it is the only one of its round. */

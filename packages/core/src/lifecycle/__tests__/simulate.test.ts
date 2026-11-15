@@ -120,6 +120,14 @@ describe("simulateRound", () => {
 		expect(!unknown.ok && unknown.error.code).toBe("UNKNOWN_ROUND");
 	});
 
+	test("with manual advancement a simulated round moves nobody", () => {
+		const manual: Bracket = { ...ready(), advancement: "manual" };
+		const { bracket } = simulated(manual, "r1");
+		expect(heatOf(bracket, "h1").status).toBe("judged");
+		expect(heatOf(bracket, "h3").slots).toEqual([]);
+		expect(canSimulateRound(bracket, "r2")).toBe(false);
+	});
+
 	test("refuses on a draft bracket and leaves the input untouched", () => {
 		const draft = sampleBracket();
 		const before = structuredClone(draft);

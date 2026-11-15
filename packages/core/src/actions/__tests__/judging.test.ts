@@ -14,6 +14,7 @@ import {
 	okBracket,
 	run,
 	sampleBracket,
+	withRider,
 } from "../../__tests__/fixtures";
 
 const scoring = (extra = {}) =>
@@ -274,9 +275,10 @@ describe("judgeHeatFromScores refusals", () => {
 	});
 
 	test("a lone rider without score is not a tie", () => {
-		const placed = okBracket(
+		const placed = withRider(
 			{ ...sampleBracket("published"), scoring: scoring() },
-			{ type: "place", riderId: "a", heatId: "h3" },
+			"h3",
+			"a",
 		);
 		const started = okBracket(placed, {
 			type: "setHeatStatus",

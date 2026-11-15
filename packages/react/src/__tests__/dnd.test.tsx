@@ -24,6 +24,16 @@ import { makeController } from "./helpers";
 
 afterEach(cleanup);
 
+/** Manual advancement where the first round is judged: `c` can be brought up to `h3`. */
+function makeJudgedManualBracket(): Bracket {
+	const bracket = makeDndBracket();
+	bracket.advancement = "manual";
+	const h2 = bracket.rounds[0]!.heats[1]!;
+	h2.status = "judged";
+	h2.slots = [{ riderId: "c", rank: 1 }];
+	return bracket;
+}
+
 function makeDndBracket(): Bracket {
 	return {
 		id: "dnd",
@@ -33,7 +43,7 @@ function makeDndBracket(): Bracket {
 			{ riderId: "b", displayName: "Bob" },
 			{ riderId: "c", displayName: "Cy" },
 			{ riderId: "d", displayName: "Dee" },
-			{ riderId: "e", displayName: "Eve", entryRoundId: "round2" },
+			{ riderId: "e", displayName: "Eve" },
 		],
 		rounds: [
 			{
@@ -279,7 +289,7 @@ describe("draggable items", () => {
 	it("keeps every control out of the draggable rows and chips", () => {
 		render(<Harness poolProps={{ mode: "admin" }} />);
 		const handles = document.querySelectorAll("[aria-roledescription]");
-		expect(handles.length).toBe(4);
+		expect(handles.length).toBe(5);
 		for (const handle of handles) {
 			expect(
 				handle.querySelector("button, input, select, textarea, a"),
@@ -436,11 +446,33 @@ describe("keyboard drag and drop", () => {
 		expect(heat.getAttribute("data-drop")).toBeNull();
 	});
 
-	it("adds a rider to a later round without removing it from its heat", async () => {
+	it("moves a rider to a later round before the bracket starts", async () => {
 		const { seen, onChange } = actions();
 		render(<Harness onChange={onChange} />);
 		await pickUp("c");
 		await press(document, "ArrowDown");
+		await press(document, "ArrowDown");
+		const heat = heatSection("h3");
+		expect(heat.getAttribute("data-drop")).toBe("allowed");
+		expect(heat.hasAttribute("data-drop-kind")).toBe(false);
+		await press(document, "Space");
+		expect(seen).toEqual([
+			{
+				type: "advance",
+				riderId: "c",
+				fromHeatId: "h2",
+				toHeatId: "h3",
+				index: 0,
+			},
+		]);
+		expect(riderOrder("h2")).toEqual([]);
+		expect(riderOrder("h3")).toEqual(["c"]);
+	});
+
+	it("adds a rider of a judged heat to a later round and keeps it in place", async () => {
+		const { seen, onChange } = actions();
+		render(<Harness onChange={onChange} bracket={makeJudgedManualBracket()} />);
+		await pickUp("c");
 		await press(document, "ArrowDown");
 		const heat = heatSection("h3");
 		expect(heat.getAttribute("data-drop")).toBe("allowed");
@@ -449,29 +481,43 @@ describe("keyboard drag and drop", () => {
 		expect(draggable("c").hasAttribute("data-dragging")).toBe(false);
 		await press(document, "Space");
 		expect(seen).toEqual([
-			{ type: "place", riderId: "c", heatId: "h3", index: 0 },
+			{
+				type: "advance",
+				riderId: "c",
+				fromHeatId: "h2",
+				toHeatId: "h3",
+				index: 0,
+			},
 		]);
 		expect(riderOrder("h2")).toEqual(["c"]);
 		expect(riderOrder("h3")).toEqual(["c"]);
 	});
 
-	it("refuses a drop towards an earlier round", async () => {
+	it("keeps the riders of a judged heat undraggable in automatic advancement", () => {
+		const bracket = makeJudgedManualBracket();
+		delete bracket.advancement;
+		render(<Harness bracket={bracket} />);
+		const row = document.querySelector('[data-rider-id="c"]')!;
+		expect(row.closest("[aria-roledescription]")).toBeNull();
+	});
+
+	it("refuses to bring up a rider of a running heat", async () => {
 		const bracket = makeDndBracket();
-		const final = bracket.rounds[1]!.heats[0]!;
-		final.slots = [{ riderId: "e", rank: null }];
+		bracket.advancement = "manual";
+		bracket.rounds[0]!.heats[1]!.status = "running";
 		const dispatchSpy = vi.fn();
 		render(<Harness bracket={bracket} dispatchSpy={dispatchSpy} />);
-		await pickUp("e");
-		await press(document, "ArrowUp");
-		const heat = heatSection("h2");
+		await pickUp("c");
+		await press(document, "ArrowDown");
+		await press(document, "ArrowDown");
+		const heat = heatSection("h3");
 		expect(heat.getAttribute("data-drop")).toBe("denied");
-		expect(heat.hasAttribute("data-drop-kind")).toBe(false);
 		expect(heat.getAttribute("title")).toBe(
-			"Riders cannot be moved from one round to another.",
+			"This heat is running: wait for its result to move its riders up.",
 		);
 		await press(document, "Space");
 		expect(dispatchSpy).not.toHaveBeenCalled();
-		expect(riderOrder("h3")).toEqual(["e"]);
+		expect(riderOrder("h3")).toEqual([]);
 	});
 
 	it("refuses a later round that already holds the rider elsewhere", async () => {
@@ -493,19 +539,17 @@ describe("keyboard drag and drop", () => {
 		expect(riderOrder("h4")).toEqual([]);
 	});
 
-	it("refuses to place a pool entry in another round than its list", async () => {
-		const dispatchSpy = vi.fn();
-		render(<Harness dispatchSpy={dispatchSpy} />);
+	it("places a pool entry into a later round when the core accepts it", async () => {
+		const { seen, onChange } = actions();
+		render(<Harness onChange={onChange} />);
 		await pickUp("d");
 		await press(document, "ArrowUp");
-		const heat = heatSection("h3");
-		expect(heat.getAttribute("data-drop")).toBe("denied");
-		expect(heat.getAttribute("title")).toBe(
-			"This is not the round this list is for.",
-		);
+		expect(heatSection("h3").getAttribute("data-drop")).toBe("allowed");
 		await press(document, "Space");
-		expect(dispatchSpy).not.toHaveBeenCalled();
-		expect(riderOrder("h3")).toEqual([]);
+		expect(seen).toEqual([
+			{ type: "place", riderId: "d", heatId: "h3", index: 0 },
+		]);
+		expect(riderOrder("h3")).toEqual(["d"]);
 	});
 
 	it("flags an open spot as allowed", async () => {
@@ -631,9 +675,10 @@ describe("announcements", () => {
 			});
 
 			it("announces an addition to a later round", async () => {
-				render(<Harness locale={c.locale} />);
+				render(
+					<Harness locale={c.locale} bracket={makeJudgedManualBracket()} />,
+				);
 				await pickUp("c");
-				await press(document, "ArrowDown");
 				await press(document, "ArrowDown");
 				expect(screen.getByRole("status").textContent).toBe(c.willCopy);
 				await press(document, "Space");
@@ -706,42 +751,31 @@ describe("error banner", () => {
 });
 
 describe("EntryPool", () => {
-	it("lists entries without a place whose entry round is not later", () => {
+	it("lists the entries placed in no heat", () => {
 		render(
 			<BracketProvider value={makeController(makeDndBracket())}>
 				<EntryPool roundId="round1" defaultCollapsed={false} />
 			</BracketProvider>,
 		);
 		const names = screen.getAllByRole("listitem").map((li) => li.textContent);
-		expect(names).toEqual(["Dee"]);
+		expect(names).toEqual(["Dee", "Eve"]);
 		expect(
 			screen.getByRole("heading", { name: "Unplaced riders" }),
 		).toBeTruthy();
 	});
 
-	it("groups by entry round without roundId and includes later entries for later rounds", () => {
-		const controller = makeController(makeDndBracket());
-		const { unmount } = render(
-			<BracketProvider value={controller}>
-				<EntryPool defaultCollapsed={false} />
+	it("lists the same entries whichever round it stands for", () => {
+		render(
+			<BracketProvider value={makeController(makeDndBracket())}>
+				<EntryPool roundId="round2" defaultCollapsed={false} />
 			</BracketProvider>,
 		);
 		expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(
 			["Dee", "Eve"],
 		);
-		expect(screen.getByRole("heading", { name: "Round 2" })).toBeTruthy();
-		unmount();
-		render(
-			<BracketProvider value={controller}>
-				<EntryPool roundId="round2" defaultCollapsed={false} />
-			</BracketProvider>,
-		);
-		expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(
-			["Ann", "Bob", "Cy", "Dee", "Eve"],
-		);
 	});
 
-	it("does not list a seed already placed in a later round", () => {
+	it("does not list a rider already placed in a later round", () => {
 		const bracket = makeDndBracket();
 		bracket.rounds[1]!.heats[0]!.slots = [{ riderId: "d", rank: null }];
 		render(
@@ -752,13 +786,6 @@ describe("EntryPool", () => {
 		expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(
 			["Eve"],
 		);
-		cleanup();
-		render(
-			<BracketProvider value={makeController(bracket)}>
-				<EntryPool roundId="round1" defaultCollapsed={false} />
-			</BracketProvider>,
-		);
-		expect(screen.queryByText("Dee")).toBeNull();
 	});
 
 	it("shows a translated empty state", () => {
@@ -825,14 +852,20 @@ describe("buildAction", () => {
 		).toMatchObject({ index: 1 });
 	});
 
-	it("places a rider into a later round and keeps its heat", () => {
+	it("advances a rider to a later round", () => {
 		expect(
 			buildAction(
 				bracket,
 				{ kind: "slot", heatId: "h2", riderId: "c" },
 				{ kind: "end", heatId: "h3" },
 			),
-		).toEqual({ type: "place", riderId: "c", heatId: "h3", index: 0 });
+		).toEqual({
+			type: "advance",
+			riderId: "c",
+			fromHeatId: "h2",
+			toHeatId: "h3",
+			index: 0,
+		});
 	});
 
 	it("keeps a move for an earlier round, left to the core to refuse", () => {

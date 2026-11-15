@@ -3,7 +3,7 @@ import { replaceHeat, roundHasRider } from "../internal/bracket";
 import { fail, ok } from "../internal/result";
 import type { Bracket, Heat } from "../model";
 import { findHeat } from "../queries";
-import { checkComposable, checkEntryRound, checkRoom } from "./composition";
+import { checkComposable, checkRoom } from "./composition";
 
 /** Target heats of the links leaving `heatId`, without the eliminated outcome. */
 function targetHeatIds(bracket: Bracket, heatId: string): string[] {
@@ -16,10 +16,19 @@ function targetHeatIds(bracket: Bracket, heatId: string): string[] {
 	return [...ids];
 }
 
+function flagged(heat: Heat): Heat {
+	return { ...heat, needsReview: true };
+}
+
 /**
- * Puts the qualifiers of a judged heat into the heats its links lead to, all
- * or nothing. A rider already anywhere in the target round is left alone, so
- * placing twice changes nothing and a manual placement is not overridden.
+ * Puts the qualifiers of a judged heat into the heats its links lead to, all or nothing. Judging is
+ * never blocked by a target heat:
+ * - a rider already in the target heat is left alone, so placing twice changes nothing;
+ * - a rider already in another heat of the target round stays there, and the target is flagged
+ *   for review;
+ * - a target that has started or is locked is left unchanged and flagged for review;
+ * - a full target still receives the rider: the round's maximum per heat grows by one and the
+ *   target is flagged for review.
  */
 export function placeQualifiers(
 	bracket: Bracket,
@@ -55,9 +64,17 @@ export function placeQualifiers(
 		);
 		let target = findHeat(current, link.to.heatId);
 		if (!slot || !target) continue;
-		if (roundHasRider(target.round, slot.riderId)) continue;
-		// The links come from the stored format, which decided this rider goes there: the heat grows.
-		if (current.format && target.heat.slots.length >= target.round.maxPerHeat) {
+		if (target.heat.slots.some((s) => s.riderId === slot.riderId)) continue;
+		if (checkComposable(target)) {
+			current = replaceHeat(current, target, flagged(target.heat));
+			continue;
+		}
+		if (roundHasRider(target.round, slot.riderId)) {
+			current = replaceHeat(current, target, flagged(target.heat));
+			continue;
+		}
+		let needsReview = false;
+		if (target.heat.slots.length >= target.round.maxPerHeat) {
 			const roundIndex = target.roundIndex;
 			current = {
 				...current,
@@ -66,14 +83,12 @@ export function placeQualifiers(
 				),
 			};
 			target = findHeat(current, link.to.heatId) ?? target;
+			needsReview = true;
 		}
-		const refused =
-			checkEntryRound(current, slot.riderId, target) ??
-			checkComposable(target) ??
-			checkRoom(slot.riderId, target);
+		const refused = checkRoom(slot.riderId, target);
 		if (refused) return refused;
 		const added: Heat = {
-			...target.heat,
+			...(needsReview ? flagged(target.heat) : target.heat),
 			slots: [...target.heat.slots, { riderId: slot.riderId, rank: null }],
 		};
 		current = replaceHeat(current, target, added);

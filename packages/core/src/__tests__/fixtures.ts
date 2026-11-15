@@ -109,7 +109,7 @@ export function sampleBracket(status?: BracketStatus): Bracket {
 				..."abcdefgh"
 					.split("")
 					.map((riderId) => ({ riderId, displayName: riderId })),
-				{ riderId: "seed", displayName: "seed", entryRoundId: "r2" },
+				{ riderId: "seed", displayName: "seed" },
 			],
 			...(status ? { status } : {}),
 		},

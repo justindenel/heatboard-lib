@@ -7,6 +7,7 @@ import {
 	okBracket,
 	run,
 	sampleBracket,
+	withRider,
 } from "../../__tests__/fixtures";
 
 const to = (
@@ -63,7 +64,7 @@ describe("reset", () => {
 			heatId: "h1",
 			status: "running",
 		});
-		b = okBracket(b, { type: "place", riderId: "a", heatId: "h3" });
+		b = withRider(b, "h3", "a");
 		return okBracket(b, { type: "place", riderId: "seed", heatId: "h4" });
 	};
 
