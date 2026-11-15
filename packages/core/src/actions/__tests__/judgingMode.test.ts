@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { validateBracket } from "../../validate";
-import { judgingModeOf, viewerDisplayOf } from "../../queries";
+import { advancementOf, judgingModeOf, viewerDisplayOf } from "../../queries";
 import { config } from "../../scoring/__tests__/helpers";
 import {
 	advanceHeat,
@@ -148,5 +148,47 @@ describe("viewer display", () => {
 			display: { rides: undefined },
 		});
 		expect(back.viewerDisplay).toEqual({ judges: true });
+	});
+});
+
+describe("advancement mode", () => {
+	test("setAdvancement stores manual and removes the field for auto", () => {
+		const b = sampleBracket();
+		expect(advancementOf(b)).toBe("auto");
+		const manual = okBracket(b, { type: "setAdvancement", mode: "manual" });
+		expect(manual.advancement).toBe("manual");
+		const auto = okBracket(manual, { type: "setAdvancement", mode: "auto" });
+		expect(auto).not.toHaveProperty("advancement");
+	});
+
+	test("setting the mode already in force is a no-op", () => {
+		const b = sampleBracket();
+		const same = run(b, { type: "setAdvancement", mode: "auto" });
+		expect(same.ok && same.bracket).toBe(b);
+		const manual = okBracket(b, { type: "setAdvancement", mode: "manual" });
+		const again = run(manual, { type: "setAdvancement", mode: "manual" });
+		expect(again.ok && again.bracket).toBe(manual);
+	});
+
+	test("manual to auto is refused once a heat has started, auto to manual is not", () => {
+		const manual = okBracket(sampleBracket(), {
+			type: "setAdvancement",
+			mode: "manual",
+		});
+		const started = advanceHeat(manual, "h1", "running");
+		expect(errorCode(started, { type: "setAdvancement", mode: "auto" })).toBe(
+			"ADVANCEMENT_LOCKED",
+		);
+		const auto = advanceHeat(sampleBracket(), "h1", "running");
+		expect(errorCode(auto, { type: "setAdvancement", mode: "manual" })).toBe(
+			"ok",
+		);
+	});
+
+	test("a validated bracket refuses it", () => {
+		const validated = sampleBracket("validated");
+		expect(
+			errorCode(validated, { type: "setAdvancement", mode: "manual" }),
+		).toBe("BRACKET_VALIDATED");
 	});
 });

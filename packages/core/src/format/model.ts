@@ -69,13 +69,11 @@ export type FormatWarning =
 
 export type BuiltRound = Round;
 
-export type BuildFormatResult =
-	| {
-			ok: true;
-			rounds: BuiltRound[];
-			links: Link[];
-			/** Planned riders per heat for each round id, counting those who will arrive through links. */
-			sizes: Record<string, number[]>;
-			warnings: FormatWarning[];
-	  }
-	| { ok: false; code: "UNKNOWN_ROUND"; riderId: string; entryRoundId: string };
+export type BuildFormatResult = {
+	ok: true;
+	rounds: BuiltRound[];
+	links: Link[];
+	/** Planned riders per heat for each round id, counting those who will arrive through links. */
+	sizes: Record<string, number[]>;
+	warnings: FormatWarning[];
+};

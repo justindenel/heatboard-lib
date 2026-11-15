@@ -21,7 +21,7 @@ export interface AdvancementConflict {
 
 export interface AdvancementSimulation {
 	heats: HeatEntryImpact[];
-	/** Riders the simulated links would deliver to several heats of one round; judging the source heat refuses them. */
+	/** Riders the simulated links would deliver to several heats of one round; judging the source heat delivers the rider to the first of them only and flags the other targets for review. */
 	conflicts: AdvancementConflict[];
 	qualification: QualificationChange[];
 }

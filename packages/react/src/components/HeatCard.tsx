@@ -3,6 +3,7 @@ import { Heading } from "./Heading";
 import { HeatActions } from "./HeatActions";
 import { sameTarget, useInspector } from "./inspectorContext";
 import {
+	advancementOf,
 	getQualified,
 	heatNumbers,
 	raceFormatDrift,
@@ -62,6 +63,11 @@ export function HeatCard({ round, heat }: HeatCardProps) {
 	const ordered =
 		admin && !started ? displaySlots(heat) : viewerSlots(heat, result);
 	const access = dragAccess(bracket, heat);
+	// In manual advancement a decided heat still lets its riders move up; the core refuses anything else.
+	const canAdvanceFrom =
+		access.kind === "closed" &&
+		(access.reason === "judged" || access.reason === "locked") &&
+		advancementOf(bracket) === "manual";
 	const rankingAllowed = settings.permissions.ranking !== false;
 	// A judged heat of an admin board is a result: routes instead of open places.
 	const compact =
@@ -105,11 +111,11 @@ export function HeatCard({ round, heat }: HeatCardProps) {
 
 	const rows = ordered.map(({ slot, index }) => {
 		const locked =
-			access.kind === "closed" ||
+			(access.kind === "closed" && !canAdvanceFrom) ||
 			(access.kind === "ranking" &&
 				(slot.status !== undefined || !rankingAllowed));
 		const reason =
-			access.kind === "closed"
+			access.kind === "closed" && !canAdvanceFrom
 				? settings.labels.rankingReason[access.reason]
 				: access.kind === "ranking" && slot.status !== undefined
 					? settings.labels.rankingReason.status

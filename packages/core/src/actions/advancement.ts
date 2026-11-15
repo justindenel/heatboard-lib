@@ -1,8 +1,8 @@
 import type { ActionResult } from "../errors";
 import { formatLocked } from "../internal/format";
 import { fail, ok } from "../internal/result";
-import type { Bracket, Link, Round } from "../model";
-import { findHeat } from "../queries";
+import type { AdvancementMode, Bracket, Link, Round } from "../model";
+import { advancementOf, findHeat, hasStarted } from "../queries";
 import { destructive, judgedHeats, markForReview } from "./review";
 
 export function updateRound(
@@ -126,4 +126,29 @@ export function setLinks(
 		concerned.flatMap((l) => (l.to === "eliminated" ? [] : [l.to.heatId])),
 	);
 	return ok(markForReview(updated, sources, targets));
+}
+
+export function setAdvancement(
+	bracket: Bracket,
+	mode: AdvancementMode,
+): ActionResult {
+	if (mode !== "auto" && mode !== "manual") {
+		return fail(
+			"INVALID_ARGUMENT",
+			`Unknown advancement mode "${String(mode)}"`,
+			{ mode: String(mode) },
+		);
+	}
+	const current = advancementOf(bracket);
+	if (mode === current) return ok(bracket);
+	if (mode === "auto" && hasStarted(bracket)) {
+		return fail(
+			"ADVANCEMENT_LOCKED",
+			"Advancement cannot go back to automatic once the bracket has started",
+		);
+	}
+	const next: Bracket = { ...bracket };
+	if (mode === "auto") delete next.advancement;
+	else next.advancement = mode;
+	return ok(next);
 }

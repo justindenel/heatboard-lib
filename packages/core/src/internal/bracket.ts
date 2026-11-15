@@ -44,12 +44,6 @@ export function findEntry(
 	return bracket.entries.find((entry) => entry.riderId === riderId);
 }
 
-/** Index of the round where the entry joins, or -1 when `entryRoundId` is unknown. */
-export function entryRoundIndex(bracket: Bracket, entry: Entry): number {
-	if (entry.entryRoundId === undefined) return 0;
-	return bracket.rounds.findIndex((round) => round.id === entry.entryRoundId);
-}
-
 export function makeSlot(
 	riderId: string,
 	fields: Pick<HeatSlot, "rank" | "status" | "overridden">,

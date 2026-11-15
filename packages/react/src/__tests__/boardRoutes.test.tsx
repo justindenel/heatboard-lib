@@ -1,13 +1,11 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { awaitedRiders } from "@heatboard/core";
 import type { Action, Bracket, Heat, Round } from "@heatboard/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	Board,
 	BracketProvider,
-	EntryPool,
-	HeatboardDnd,
 	HeatboardProvider,
-	labels,
 	useBracket,
 } from "../index";
 import {
@@ -31,7 +29,7 @@ function bracketOf(over: Partial<Bracket> = {}): Bracket {
 		entries: [
 			{ riderId: "r1", displayName: "Ann" },
 			{ riderId: "r2", displayName: "Bob" },
-			{ riderId: "r3", displayName: "Cy", entryRoundId: "t3" },
+			{ riderId: "r3", displayName: "Cy" },
 		],
 		rounds: [
 			round("t1", "Tour 1", [
@@ -115,6 +113,38 @@ describe("links read for the board", () => {
 	it("lists the sources still to be played, in bracket order", () => {
 		const origins = slotOrigins(bracketOf(), "d");
 		expect(origins.map((o) => [o.source.heat.id, o.rank])).toEqual([["b", 1]]);
+	});
+});
+
+describe("links in manual advancement", () => {
+	const manual = () => bracketOf({ advancement: "manual" });
+
+	it("announces no destination and no origin", () => {
+		expect(slotDestination(manual(), "a", 1)).toBeUndefined();
+		expect(slotDestination(manual(), "a", 3)).toBeUndefined();
+		expect(slotOrigins(manual(), "d")).toEqual([]);
+	});
+
+	it("counts the places a heat still awaits from the core", () => {
+		const bracket = manual();
+		const start = (heatId: string): Action => ({
+			type: "setHeatStatus",
+			heatId,
+			status: "running",
+		});
+		expect(openPlacesAtStart(bracket, start("d"))).toBe(
+			awaitedRiders(bracket, "d"),
+		);
+		expect(openPlacesAtStart(bracket, start("d"))).toBeGreaterThan(0);
+		expect(openPlacesAtStart(bracket, start("e"))).toBe(0);
+	});
+
+	it("shows no route on a judged heat, unlike automatic advancement", () => {
+		const auto = renderBoard(bracketOf());
+		expect(auto.container.querySelector("[data-destination]")).not.toBeNull();
+		cleanup();
+		const { container } = renderBoard(manual());
+		expect(container.querySelector("[data-destination]")).toBeNull();
 	});
 });
 
@@ -290,31 +320,23 @@ describe("late entries", () => {
 		return bracket;
 	}
 
-	it("accepts a late rider back on the list of its own round only", () => {
+	it("asks the core for a removal whichever list is hovered", () => {
 		const bracket = lateBracket();
-		const canApply = () => ({ ok: true as const, bracket });
+		const asked: Action[] = [];
+		const canApply = (action: Action) => {
+			asked.push(action);
+			return { ok: true as const, bracket };
+		};
 		const source = { kind: "slot" as const, heatId: "e", riderId: "r3" };
-		expect(
-			evaluateDrop(bracket, canApply, source, { kind: "pool", roundId: "t3" })
-				?.result.ok,
-		).toBe(true);
-		expect(
-			evaluateDrop(bracket, canApply, source, { kind: "pool", roundId: "t1" })
-				?.result.ok,
-		).toBe(false);
-	});
-
-	it("shows no zone until a rider of that round is dragged", () => {
-		const { container } = render(
-			<HeatboardProvider locale="en">
-				<BracketProvider value={makeController(lateBracket())}>
-					<HeatboardDnd>
-						<EntryPool mode="admin" defaultCollapsed={false} />
-					</HeatboardDnd>
-				</BracketProvider>
-			</HeatboardProvider>,
-		);
-		expect(container.querySelector(".hb-pool__zone")).toBeNull();
-		expect(labels.en.entryPoolDropHere).not.toBe("");
+		for (const roundId of ["t3", "t1"]) {
+			expect(
+				evaluateDrop(bracket, canApply, source, { kind: "pool", roundId })
+					?.result.ok,
+			).toBe(true);
+		}
+		expect(asked).toEqual([
+			{ type: "remove", riderId: "r3", heatId: "e" },
+			{ type: "remove", riderId: "r3", heatId: "e" },
+		]);
 	});
 });

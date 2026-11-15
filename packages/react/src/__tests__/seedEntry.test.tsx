@@ -50,15 +50,6 @@ describe("seed entries", () => {
 		expect(isSeedEntry(bracket, bracket.rounds[0]?.id ?? "", "r1")).toBe(false);
 	});
 
-	it("never marks a rider with an entry round of their own", () => {
-		const bracket = seededBracket();
-		const second = bracket.rounds[1]?.id ?? "";
-		const entries = bracket.entries.map((e) =>
-			e.riderId === "r1" ? { ...e, entryRoundId: second } : e,
-		);
-		expect(isSeedEntry({ ...bracket, entries }, second, "r1")).toBe(false);
-	});
-
 	it("shows a badge on the slot of each seed, in the language of the provider", () => {
 		const bracket = seededBracket();
 		const controller = {

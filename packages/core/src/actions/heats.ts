@@ -5,6 +5,7 @@ import { fail, ok } from "../internal/result";
 import { isIsoDate } from "../internal/time";
 import type { Bracket, Heat, HeatStatus } from "../model";
 import {
+	advancementOf,
 	currentRaceFormat,
 	findHeat,
 	raceFormatOf,
@@ -155,7 +156,8 @@ export function setHeatStatus(
 		delete updated.timing;
 		delete updated.judgingMode;
 	}
-	const withdrawing = from === "judged" && status === "running";
+	const automatic = advancementOf(bracket) === "auto";
+	const withdrawing = automatic && from === "judged" && status === "running";
 	const source = withdrawing ? withdrawQualifiers(bracket, heatId) : bracket;
 	const started: Bracket =
 		status === "running" &&
@@ -173,7 +175,7 @@ export function setHeatStatus(
 		const affected = heat.slots.some((s) => riderIds.has(s.riderId));
 		return affected ? { ...heat, needsReview: true } : heat;
 	});
-	return from === "running" && status === "judged"
+	return automatic && from === "running" && status === "judged"
 		? placeQualifiers(next, heatId)
 		: ok(next);
 }

@@ -65,13 +65,6 @@ export function applyFormat(
 		drawSeed,
 		editor?.riders,
 	);
-	if (!built.ok) {
-		return fail(
-			"UNKNOWN_ROUND",
-			`Rider "${built.riderId}" has entry round "${built.entryRoundId}" which is not in the format`,
-			{ riderId: built.riderId, roundId: built.entryRoundId },
-		);
-	}
 	const keptIds = new Set(built.rounds.map((r) => r.id));
 	const removed = bracket.rounds.filter((r) => !keptIds.has(r.id)).length;
 	const changed = built.rounds.length + removed;

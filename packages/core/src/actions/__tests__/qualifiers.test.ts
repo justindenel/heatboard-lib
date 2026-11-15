@@ -77,13 +77,10 @@ describe("judging a heat places its qualifiers", () => {
 	});
 
 	test("a rider already in the target heat is not added twice", () => {
-		let b = okBracket(rankedSample(), {
-			type: "place",
-			riderId: "c",
-			heatId: "h3",
-		});
+		let b = withRider(rankedSample(), "h3", "c");
 		b = to(b, "h1", "judged");
 		expect(ridersOf(b, "h3")).toEqual(["c", "a"]);
+		expect(b.rounds[1]?.heats[0]).not.toHaveProperty("needsReview");
 	});
 
 	test("locking a judged heat changes nothing more", () => {
@@ -116,27 +113,49 @@ describe("judging refused because of a target heat", () => {
 	const judge = (b: Bracket) =>
 		run(b, { type: "setHeatStatus", heatId: "h1", status: "judged" });
 
-	test("all or nothing: a started target keeps the heat running", () => {
-		const blocked = twoRounds(heat("h2"));
-		blocked.rounds[1] = {
-			...blocked.rounds[1]!,
+	test("a started target is flagged and left alone, the other links still apply", () => {
+		const started = twoRounds(heat("h2"));
+		started.rounds[1] = {
+			...started.rounds[1]!,
 			heats: [heat("h2"), heat("h3", [], { status: "running" })],
 		};
-		const result = judge(blocked);
-		expect(!result.ok && result.error.code).toBe("HEAT_STARTED");
+		const result = judge(started);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		const [h2, h3] = result.bracket.rounds[1]!.heats;
+		expect(h2!.slots.map((s) => s.riderId)).toEqual(["a"]);
+		expect(h2).not.toHaveProperty("needsReview");
+		expect(h3!.slots).toEqual([]);
+		expect(h3!.needsReview).toBe(true);
 	});
 
-	test("a locked target, a full target", () => {
-		expect(
-			errorCode(twoRounds(heat("h2", [], { status: "locked" })), {
-				type: "setHeatStatus",
-				heatId: "h1",
-				status: "judged",
-			}),
-		).toBe("HEAT_LOCKED");
-		const full = twoRounds(heat("h2", ["z"]));
-		const result = judge(full);
-		expect(!result.ok && result.error.code).toBe("HEAT_FULL");
+	test("a locked target is flagged and left alone, the other links still apply", () => {
+		const result = judge(twoRounds(heat("h2", [], { status: "locked" })));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		const [h2, h3] = result.bracket.rounds[1]!.heats;
+		expect(h2!.slots).toEqual([]);
+		expect(h2!.needsReview).toBe(true);
+		expect(h3!.slots.map((s) => s.riderId)).toEqual(["b"]);
+	});
+
+	test("a full target grows by one place and is flagged, with or without a stored format", () => {
+		const stored = twoRounds(heat("h2", ["z"]));
+		const withFormat: Bracket = {
+			...stored,
+			format: { settings: {} as never, drawSeed: 1 },
+		};
+		for (const full of [stored, withFormat]) {
+			const result = judge(full);
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+			const [h2, h3] = result.bracket.rounds[1]!.heats;
+			expect(result.bracket.rounds[1]!.maxPerHeat).toBe(2);
+			expect(h2!.slots.map((s) => s.riderId)).toEqual(["z", "a"]);
+			expect(h2!.needsReview).toBe(true);
+			expect(h3!.slots.map((s) => s.riderId)).toEqual(["b"]);
+			expect(h3).not.toHaveProperty("needsReview");
+		}
 	});
 
 	test("a rider already in another heat of the target round is skipped, the other links still apply", () => {
@@ -152,29 +171,11 @@ describe("judging refused because of a target heat", () => {
 		const [h2, h3] = result.bracket.rounds[1]!.heats;
 		expect(h2!.slots.map((s) => s.riderId)).toEqual(["b"]);
 		expect(h3!.slots.map((s) => s.riderId)).toEqual(["a"]);
+		expect(h2!.needsReview).toBe(true);
+		expect(h3).not.toHaveProperty("needsReview");
 	});
 
-	test("a rider who enters later, an unknown target, a backward link", () => {
-		const early = bracket(
-			[
-				round("r1", [
-					heat("h1", [{ id: "a", rank: 1 }], { status: "running" }),
-				]),
-				round("r2", [heat("h2")]),
-				round("r3", [heat("h3")]),
-			],
-			{
-				entries: [{ riderId: "a", displayName: "a", entryRoundId: "r3" }],
-				links: [link("h1", 1, "h2")],
-			},
-		);
-		expect(
-			errorCode(early, {
-				type: "setHeatStatus",
-				heatId: "h1",
-				status: "judged",
-			}),
-		).toBe("BEFORE_ENTRY_ROUND");
+	test("an unknown target, a backward link", () => {
 		const unknown = bracket(
 			[
 				round("r1", [

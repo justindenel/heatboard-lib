@@ -105,7 +105,7 @@ export function makeRunningBracket(
 		...judgingOf(mode),
 		entries: NAMES.map((displayName, i) =>
 			i === 15
-				? { riderId: id(16), displayName, seed: 1, entryRoundId: "round2" }
+				? { riderId: id(16), displayName, seed: 1 }
 				: { riderId: id(i + 1), displayName },
 		),
 		rounds: [

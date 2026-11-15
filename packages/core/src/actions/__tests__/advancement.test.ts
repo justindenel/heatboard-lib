@@ -10,6 +10,7 @@ import {
 	okBracket,
 	run,
 	sampleBracket,
+	withRider,
 } from "../../__tests__/fixtures";
 
 const heatIn = (b: Bracket, id: string) =>
@@ -24,8 +25,8 @@ const flagged = (b: Bracket) =>
 /** h1 judged with a, b, c, d ranked in that order; a sits in h3 and e in h4. */
 const afterH1 = (): Bracket => {
 	let b = sampleBracket();
-	b = okBracket(b, { type: "place", riderId: "a", heatId: "h3" });
-	b = okBracket(b, { type: "place", riderId: "e", heatId: "h4" });
+	b = withRider(b, "h3", "a");
+	b = withRider(b, "h4", "e");
 	return advanceHeat(b, "h1", "judged");
 };
 
@@ -164,7 +165,7 @@ describe("setRaceFormat", () => {
 	/** h1 judged (a, b, c, d), h2 locked (e, f, g, h), a in h3. */
 	const judgedTwo = (): Bracket => {
 		let b = sampleBracket();
-		b = okBracket(b, { type: "place", riderId: "a", heatId: "h3" });
+		b = withRider(b, "h3", "a");
 		b = advanceHeat(b, "h1", "judged");
 		return advanceHeat(b, "h2", "locked");
 	};

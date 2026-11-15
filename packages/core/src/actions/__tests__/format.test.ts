@@ -114,13 +114,6 @@ describe("applyFormat", () => {
 		expect(errorCode(base(), apply(preset("Single elimination"), 1.5))).toBe(
 			"INVALID_ARGUMENT",
 		);
-		const outside = bracket([], {
-			entries: entries(4, { entryRoundId: "elsewhere" }),
-			status: "published",
-		});
-		expect(errorCode(outside, apply(preset("Single elimination")))).toBe(
-			"UNKNOWN_ROUND",
-		);
 	});
 
 	test("refuses a change that creates and removes more than 97 rounds in total", () => {

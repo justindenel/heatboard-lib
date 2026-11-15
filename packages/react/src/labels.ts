@@ -33,8 +33,6 @@ export interface Labels {
 	expandRound: (name: string) => string;
 	collapseRound: (name: string) => string;
 	roundCollapsedSummary: (heats: number, places: number) => string;
-	/** Shown in the list of a later entry round while a rider is dragged out of that round. */
-	entryPoolDropHere: string;
 	/** Display names of lycra colors, keyed by lowercase color value. */
 	lycraColorNames: Record<string, string>;
 	lycra: (color: string) => string;
@@ -415,7 +413,6 @@ export interface Labels {
 		heats: number,
 	) => string;
 	formatProblem: (path: string, message: string) => string;
-	formatEntryRoundMissing: (round: string) => string;
 	formatImport: string;
 	formatExport: string;
 	formatJson: string;
@@ -610,7 +607,6 @@ const en: Labels = {
 	collapseRound: (name) => `Hide ${name}`,
 	roundCollapsedSummary: (heats, places) =>
 		`${heats} ${heats === 1 ? "heat" : "heats"} \u00B7 ${places} ${places === 1 ? "place" : "places"}`,
-	entryPoolDropHere: "Drop here to take the rider out of the round",
 	lycraColorNames: {
 		red: "red",
 		blue: "blue",
@@ -635,13 +631,22 @@ const en: Labels = {
 		HEAT_JUDGED: "This heat has been judged and can no longer be changed.",
 		RIDER_ALREADY_IN_ROUND: "This rider is already in this round.",
 		CROSS_ROUND_MOVE: "Riders cannot be moved from one round to another.",
-		BEFORE_ENTRY_ROUND: "This rider only enters in a later round.",
 		BRACKET_VALIDATED: "The bracket is validated and can no longer be changed.",
 		UNKNOWN_HEAT: "This heat no longer exists.",
 		UNKNOWN_RIDER: "This rider is not registered.",
 		RIDER_NOT_IN_HEAT: "This rider is no longer in this heat.",
 		INVALID_ARGUMENT: "This position is not valid.",
-		OTHER_POOL_ROUND: "This is not the round this list is for.",
+		ADVANCEMENT_LOCKED:
+			"The bracket has started: automatic advancement cannot be restored.",
+		NOT_LATER_ROUND: "A rider only moves up to a later round.",
+		SOURCE_HEAT_RUNNING:
+			"This heat is running: wait for its result to move its riders up.",
+		PLACEMENT_LOCKED:
+			"The bracket started in automatic advancement: riders move up from the results.",
+		SEED_SLOTS_FULL:
+			"This round accepts no more direct entries. Raise its number of seeds in the format.",
+		RIDER_ALREADY_PLACED:
+			"This rider is already placed in an earlier round: move them instead.",
 		SERVER_ERROR: "The server refused the change.",
 		UNKNOWN_ROUND: "This round no longer exists.",
 		HEAT_NOT_JUDGED: "Every source heat must be judged first.",
@@ -656,7 +661,6 @@ const en: Labels = {
 		INVALID_RANKS: "These ranks are not valid.",
 		DUPLICATE_ID: "This identifier is already used.",
 		ROUND_STARTED: "This round has started.",
-		ROUND_REFERENCED: "A rider enters the bracket at this round.",
 		RIDER_IN_STARTED_HEAT: "This rider is in a heat that has started.",
 		DESTRUCTIVE_CHANGE: "This change needs confirmation.",
 		DOWNSTREAM_STARTED:
@@ -1138,8 +1142,6 @@ const en: Labels = {
 	formatWarningTooManyHeats: (round, riders, heats) =>
 		`${round}: ${riders} riders for ${heats} heats, some heats will stay empty.`,
 	formatProblem: (path, message) => `${path || "format"}: ${message}`,
-	formatEntryRoundMissing: (round) =>
-		`A rider enters at "${round}", which is not in these settings.`,
 	formatImport: "Import JSON",
 	formatExport: "Export JSON",
 	formatJson: "Round settings JSON",
@@ -1374,7 +1376,6 @@ const fr: Labels = {
 	collapseRound: (name) => `Masquer ${name}`,
 	roundCollapsedSummary: (heats, places) =>
 		`${heats} ${heats === 1 ? "heat" : "heats"} \u00B7 ${places} ${places === 1 ? "place" : "places"}`,
-	entryPoolDropHere: "Déposer ici pour sortir le rider du tour",
 	lycraColorNames: {
 		red: "rouge",
 		blue: "bleue",
@@ -1399,13 +1400,22 @@ const fr: Labels = {
 		HEAT_JUDGED: "Ce heat est jugé et ne peut plus être modifié.",
 		RIDER_ALREADY_IN_ROUND: "Ce rider est déjà dans ce tour.",
 		CROSS_ROUND_MOVE: "Un rider ne peut pas changer de tour.",
-		BEFORE_ENTRY_ROUND: "Ce rider n'entre qu'à un tour suivant.",
 		BRACKET_VALIDATED: "Le tableau est validé et ne peut plus être modifié.",
 		UNKNOWN_HEAT: "Ce heat n'existe plus.",
 		UNKNOWN_RIDER: "Ce rider n'est pas inscrit.",
 		RIDER_NOT_IN_HEAT: "Ce rider n'est plus dans ce heat.",
 		INVALID_ARGUMENT: "Cette position n'est pas valide.",
-		OTHER_POOL_ROUND: "Ce n'est pas le tour de cette liste.",
+		ADVANCEMENT_LOCKED:
+			"Le tableau a démarré : on ne peut plus revenir à l'avancée automatique.",
+		NOT_LATER_ROUND: "Un rider ne monte que vers un tour suivant.",
+		SOURCE_HEAT_RUNNING:
+			"Ce heat est en cours : attendez son résultat pour faire monter ses riders.",
+		PLACEMENT_LOCKED:
+			"Le tableau a démarré en avancée automatique : les riders montent d'après les résultats.",
+		SEED_SLOTS_FULL:
+			"Ce tour n'accepte pas plus d'entrées directes. Augmentez le nombre de têtes de série de ce tour dans le format.",
+		RIDER_ALREADY_PLACED:
+			"Ce rider est déjà placé dans un tour précédent : déplacez-le plutôt.",
 		SERVER_ERROR: "Le serveur a refusé la modification.",
 		UNKNOWN_ROUND: "Ce tour n'existe plus.",
 		HEAT_NOT_JUDGED: "Tous les heats sources doivent être jugés.",
@@ -1421,7 +1431,6 @@ const fr: Labels = {
 		INVALID_RANKS: "Ces rangs ne sont pas valides.",
 		DUPLICATE_ID: "Cet identifiant est déjà utilisé.",
 		ROUND_STARTED: "Ce tour a démarré.",
-		ROUND_REFERENCED: "Un rider entre dans le tableau à ce tour.",
 		RIDER_IN_STARTED_HEAT: "Ce rider est dans un heat démarré.",
 		DESTRUCTIVE_CHANGE: "Cette modification demande une confirmation.",
 		DOWNSTREAM_STARTED:
@@ -1924,8 +1933,6 @@ const fr: Labels = {
 	formatWarningTooManyHeats: (round, riders, heats) =>
 		`${round} : ${riders} riders pour ${heats} heats, certains heats resteront vides.`,
 	formatProblem: (path, message) => `${path || "format"} : ${message}`,
-	formatEntryRoundMissing: (round) =>
-		`Un rider entre à « ${round} », qui n'est pas dans ces réglages.`,
 	formatImport: "Importer du JSON",
 	formatExport: "Exporter en JSON",
 	formatJson: "JSON des réglages des tours",

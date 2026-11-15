@@ -1,10 +1,11 @@
 import type { ActionResult } from "../errors";
-import { entryRoundIndex, makeSlot } from "../internal/bracket";
+import { makeSlot } from "../internal/bracket";
 import { createRandom } from "../internal/random";
 import { fail, ok } from "../internal/result";
 import { serpentineIndex } from "../internal/serpentine";
 import { orderByPriority } from "../format/seeds";
 import type { Bracket } from "../model";
+import { directEntries } from "./composition";
 
 /**
  * Riders are dealt in serpentine order by seed priority (ties and riders without
@@ -39,16 +40,18 @@ export function drawRound(
 		);
 	}
 
-	// Seeds already placed in a later round (see `seeds` in the format) must not be drawn again.
+	// The first round deals every rider not placed in a later round (seeds placed there stay put). A
+	// later round only deals its own direct entries, read before its heats are emptied.
+	const direct = new Set(directEntries(bracket, roundIndex));
 	const placedLater = new Set(
 		bracket.rounds
 			.slice(roundIndex + 1)
 			.flatMap((r) => r.heats.flatMap((h) => h.slots.map((s) => s.riderId))),
 	);
-	const entering = bracket.entries.filter(
-		(entry) =>
-			entryRoundIndex(bracket, entry) === roundIndex &&
-			!placedLater.has(entry.riderId),
+	const entering = bracket.entries.filter((entry) =>
+		roundIndex === 0
+			? !placedLater.has(entry.riderId)
+			: direct.has(entry.riderId),
 	);
 	const drawn = orderByPriority(entering, createRandom(drawSeed));
 

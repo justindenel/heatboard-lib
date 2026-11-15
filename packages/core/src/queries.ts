@@ -1,4 +1,5 @@
 import type {
+	AdvancementMode,
 	Bracket,
 	Heat,
 	HeatSlot,
@@ -9,6 +10,7 @@ import type {
 	Round,
 	ViewerDisplay,
 } from "./model";
+import { isStarted } from "./internal/bracket";
 import { deepEqual } from "./internal/equal";
 import type { ScoringConfig } from "./scoring/model";
 
@@ -161,6 +163,72 @@ export function provisionalOrder(heat: Heat): string[] {
 /** Judging mode in force for the bracket; absent means `free`. */
 export function judgingModeOf(bracket: Bracket): JudgingMode {
 	return bracket.judgingMode ?? "free";
+}
+
+/** Advancement mode in force for the bracket; absent means `auto`. */
+export function advancementOf(bracket: Bracket): AdvancementMode {
+	return bracket.advancement ?? "auto";
+}
+
+/** At least one heat has left `pending`. */
+export function hasStarted(bracket: Bracket): boolean {
+	return bracket.rounds.some((round) => round.heats.some(isStarted));
+}
+
+/**
+ * One feeder heat of a target heat: `expected` counts its links to the target that will deliver a
+ * rider, `arrived` how many of its riders already sit in the target (never more than `expected`).
+ */
+export interface SourceFlow {
+	heatId: string;
+	expected: number;
+	arrived: number;
+}
+
+/**
+ * For each feeder heat with links to `heatId`: how many of those links will deliver a rider, and how
+ * many of the feeder's riders already sit in `heatId`. A link delivers when its rank holds a rider
+ * with no participant status (judged or locked feeder), or when the feeder has at least that many
+ * riders with no participant status (feeder not judged yet). Riders from other heats count for no
+ * feeder.
+ */
+export function sourceFlows(bracket: Bracket, heatId: string): SourceFlow[] {
+	const target = findHeat(bracket, heatId)?.heat;
+	if (!target) return [];
+	const expectedOf = new Map<string, number>();
+	for (const link of bracket.links) {
+		if (link.to === "eliminated" || link.to.heatId !== heatId) continue;
+		const source = findHeat(bracket, link.from.heatId)?.heat;
+		if (!source) continue;
+		const open = source.slots.filter((s) => s.status === undefined);
+		const decided = source.status === "judged" || source.status === "locked";
+		const delivers = decided
+			? open.some((s) => s.rank === link.from.rank)
+			: link.from.rank <= open.length;
+		expectedOf.set(
+			source.id,
+			(expectedOf.get(source.id) ?? 0) + (delivers ? 1 : 0),
+		);
+	}
+	const inTarget = new Set(target.slots.map((s) => s.riderId));
+	return [...expectedOf].map(([sourceId, expected]) => {
+		const source = findHeat(bracket, sourceId)?.heat;
+		const present =
+			source?.slots.filter((s) => inTarget.has(s.riderId)).length ?? 0;
+		return { heatId: sourceId, expected, arrived: Math.min(expected, present) };
+	});
+}
+
+/**
+ * Number of riders the links will still bring into the heat: for each feeder heat, the riders its
+ * links will deliver minus those of its riders already in the heat. Direct entries and riders from
+ * heats that do not feed this one do not lower the count; a heat with no incoming link awaits nobody.
+ */
+export function awaitedRiders(bracket: Bracket, heatId: string): number {
+	return sourceFlows(bracket, heatId).reduce(
+		(sum, flow) => sum + flow.expected - flow.arrived,
+		0,
+	);
 }
 
 /** Scoring that applies to a heat: its snapshot once started, else the bracket's current one. */

@@ -5,7 +5,7 @@ import {
 	removeRound,
 	type NewRound,
 } from "./structure";
-import { setLinks, updateRound } from "./advancement";
+import { setAdvancement, setLinks, updateRound } from "./advancement";
 import {
 	renameBracket,
 	renameHeat,
@@ -21,10 +21,11 @@ import { setViewerDisplay } from "./judgingMode";
 import { setRaceFormat } from "./raceFormat";
 import { cancelPauseRequest, pauseRace, resumeRace } from "./chain";
 import type { HeatData } from "../lifecycle/scoring";
-import { move, place, remove } from "./composition";
+import { advance, move, place, remove } from "./composition";
 import { drawRound } from "./draw";
 import { closeDoubleElimination, openDoubleElimination } from "./double";
 import { applyFormat } from "./format";
+import { placeAll, placeRest } from "./placement";
 import type { DoubleFinalMode } from "../format/double";
 import type { FormatEditorState, FormatSettings } from "../format/model";
 import type { DoubleRoundNames } from "../format/names";
@@ -41,6 +42,7 @@ import { withChain } from "../internal/chain";
 import { fail, ok } from "../internal/result";
 import type { ActionResult } from "../errors";
 import type {
+	AdvancementMode,
 	Bracket,
 	BracketStatus,
 	Entry,
@@ -54,6 +56,7 @@ import type {
 } from "../model";
 import type { Penalty, ScoringConfig } from "../scoring/model";
 import { DEFAULT_OPTIONS, type BracketOptions } from "../options";
+import { advancementOf, findHeat, hasStarted } from "../queries";
 
 export type Action =
 	| { type: "place"; riderId: string; heatId: string; index?: number }
@@ -64,8 +67,19 @@ export type Action =
 			toHeatId: string;
 			index?: number;
 	  }
+	| {
+			type: "advance";
+			riderId: string;
+			fromHeatId: string;
+			toHeatId: string;
+			index?: number;
+	  }
 	| { type: "remove"; riderId: string; heatId: string }
 	| { type: "drawRound"; roundId: string; drawSeed: number }
+	/** Destructive: discards the current placement and places every entered rider (see `placeAllPlan`). */
+	| { type: "placeAll"; drawSeed: number }
+	/** Places the riders that sit in no heat; nobody already placed moves. */
+	| { type: "placeRest"; drawSeed: number }
 	| { type: "setRanks"; heatId: string; riderIds: string[]; override?: boolean }
 	| { type: "reorderSlots"; heatId: string; riderIds: string[] }
 	| { type: "rankByPosition"; heatId: string }
@@ -112,7 +126,6 @@ export type Action =
 			riderId: string;
 			displayName?: string;
 			seed?: number | null;
-			entryRoundId?: string | null;
 	  }
 	| { type: "removeEntry"; riderId: string }
 	| {
@@ -136,6 +149,7 @@ export type Action =
 	| { type: "removeHeat"; heatId: string; confirm?: boolean }
 	| { type: "setViewerDisplay"; display: ViewerDisplay }
 	| { type: "setLinks"; links: Link[]; confirm?: boolean }
+	| { type: "setAdvancement"; mode: AdvancementMode }
 	| {
 			type: "setRaceFormat";
 			/** Applies to heats that start afterwards only; a running or judged heat keeps its own. */
@@ -161,6 +175,25 @@ function allowedWhenValidated(action: Action): boolean {
 		return action.status === "finished" || action.status === "validated";
 	}
 	return VALIDATED_ALLOWED.has(action.type);
+}
+
+const PLACEMENT_CHANGING: ReadonlySet<Action["type"]> = new Set([
+	"place",
+	"remove",
+	"advance",
+	"drawRound",
+	"placeAll",
+	"placeRest",
+]);
+
+/** Gestures that change who sits in which heat; a reorder inside one heat is not one. */
+function changesPlacement(bracket: Bracket, action: Action): boolean {
+	if (PLACEMENT_CHANGING.has(action.type)) return true;
+	if (action.type !== "move") return false;
+	const from = findHeat(bracket, action.fromHeatId);
+	const to = findHeat(bracket, action.toHeatId);
+	if (!from || !to) return false;
+	return from.roundIndex !== to.roundIndex || from.heatIndex !== to.heatIndex;
 }
 
 /** "finished" follows the heats: reached when the last required heat is judged, left when one is reopened. */
@@ -207,6 +240,18 @@ function dispatch(
 		);
 	}
 	const resolved = { ...DEFAULT_OPTIONS, ...options };
+	if (
+		resolved.lockPlacementOnceStarted &&
+		hasStarted(bracket) &&
+		advancementOf(bracket) === "auto" &&
+		changesPlacement(bracket, action)
+	) {
+		return fail(
+			"PLACEMENT_LOCKED",
+			`Action "${action.type}" is not allowed once the bracket has started with automatic advancement`,
+			{ type: action.type },
+		);
+	}
 	switch (action.type) {
 		case "place":
 			return place(bracket, action.riderId, action.heatId, action.index);
@@ -219,8 +264,21 @@ function dispatch(
 				action.index,
 				resolved,
 			);
+		case "advance":
+			return advance(
+				bracket,
+				action.riderId,
+				action.fromHeatId,
+				action.toHeatId,
+				action.index,
+				resolved,
+			);
 		case "drawRound":
 			return drawRound(bracket, action.roundId, action.drawSeed);
+		case "placeAll":
+			return placeAll(bracket, action.drawSeed);
+		case "placeRest":
+			return placeRest(bracket, action.drawSeed);
 		case "remove":
 			return remove(bracket, action.riderId, action.heatId);
 		case "setRanks":
@@ -313,6 +371,8 @@ function dispatch(
 			return setViewerDisplay(bracket, action.display);
 		case "setLinks":
 			return setLinks(bracket, action.links, action.confirm ?? false);
+		case "setAdvancement":
+			return setAdvancement(bracket, action.mode);
 		case "setRaceFormat":
 			return setRaceFormat(bracket, action);
 		case "pauseRace":

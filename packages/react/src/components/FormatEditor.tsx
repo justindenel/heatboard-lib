@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-	buildFromFormat,
 	defaultPlan,
 	editorFromPlan,
 	exportFormat,
@@ -147,15 +146,11 @@ export function FormatEditor(props: FormatEditorProps) {
 
 	const parsed = blocking.length === 0 ? parseFormat(format) : undefined;
 	const valid = parsed?.ok ? parsed.format : undefined;
-	const built = valid ? buildFromFormat(bracket, valid, drawSeed) : undefined;
 	const problems: string[] = [
 		...(parsed && !parsed.ok
 			? parsed.errors.map((issue) =>
 					labels.formatProblem(issue.path, issue.message),
 				)
-			: []),
-		...(built && !built.ok
-			? [labels.formatEntryRoundMissing(built.entryRoundId)]
 			: []),
 	];
 

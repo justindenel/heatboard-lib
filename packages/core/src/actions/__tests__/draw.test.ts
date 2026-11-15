@@ -166,16 +166,67 @@ describe("drawRound", () => {
 		).toBe("BRACKET_VALIDATED");
 	});
 
-	test("late entries are only drawn in their own round", () => {
-		const entries: Entry[] = [
-			...riders(4),
-			{ riderId: "late", displayName: "late", entryRoundId: "r2" },
-		];
-		const b = build(entries, 2);
-		expect(heatsOf(draw(b, 1)).flat()).not.toContain("late");
-		const r2 = okBracket(b, { type: "drawRound", roundId: "r2", drawSeed: 1 });
-		expect(heatsOf(r2, 1)).toEqual([["late"]]);
-		expect(heatsOf(r2, 0)).toEqual(heatsOf(b, 0));
+	test("is refused as PLACEMENT_LOCKED once started in auto when the option is on", () => {
+		const b = advanceHeat(
+			bracket(
+				[
+					round("r1", [heat("h1", ["r1"]), heat("h2", ["r2"])]),
+					round("r2", [heat("f1")]),
+				],
+				{ status: "published", entries: riders(4) },
+			),
+			"h1",
+			"running",
+		);
+		const action = { type: "drawRound", roundId: "r2", drawSeed: 1 } as const;
+		expect(errorCode(b, action, { lockPlacementOnceStarted: true })).toBe(
+			"PLACEMENT_LOCKED",
+		);
+		expect(
+			errorCode({ ...b, advancement: "manual" }, action, {
+				lockPlacementOnceStarted: true,
+			}),
+		).not.toBe("PLACEMENT_LOCKED");
+		expect(errorCode(b, action)).not.toBe("PLACEMENT_LOCKED");
+	});
+
+	test("a rider placed in a later round is not drawn in the first round", () => {
+		const b = bracket(
+			[
+				round("r1", [heat("h1"), heat("h2")]),
+				round("r2", [heat("f1", ["late"])]),
+			],
+			{
+				status: "published",
+				entries: [...riders(4), { riderId: "late", displayName: "late" }],
+			},
+		);
+		expect(heatsOf(draw(b, 1)).flat().sort()).toEqual(["r1", "r2", "r3", "r4"]);
+		expect(draw(b, 1).rounds[1]).toBe(b.rounds[1]);
+	});
+
+	test("a later round deals again only its own direct entries", () => {
+		const b = bracket(
+			[
+				round("r1", [heat("h1", ["r1", "r2"]), heat("h2", ["r3"])]),
+				round("r2", [heat("f1", ["r1", "s1"]), heat("f2", ["s2"])]),
+			],
+			{
+				status: "published",
+				entries: [
+					...riders(4),
+					{ riderId: "s1", displayName: "s1" },
+					{ riderId: "s2", displayName: "s2" },
+				],
+			},
+		);
+		const next = okBracket(b, {
+			type: "drawRound",
+			roundId: "r2",
+			drawSeed: 3,
+		});
+		expect(heatsOf(next, 1).flat().sort()).toEqual(["s1", "s2"]);
+		expect(next.rounds[0]).toBe(b.rounds[0]);
 	});
 
 	test("replaces composition and clears order and ranks", () => {

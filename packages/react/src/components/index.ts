@@ -33,7 +33,6 @@ export type {
 	BracketToolbarProps,
 	ConfirmDialogProps,
 	EditableNameProps,
-	EntryFormProps,
 	HeatControlsProps,
 	HeatPenaltiesProps,
 	ScoringEditorProps,
