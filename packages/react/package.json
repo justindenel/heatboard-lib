@@ -1,6 +1,6 @@
 {
 	"name": "@heatboard/react",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "React components for heat-based competition brackets: bracket view, judging, scoring and editor.",
 	"license": "MPL-2.0",
 	"repository": {
