@@ -8,24 +8,12 @@ function unknownRider(riderId: string): ActionResult {
 	return fail("UNKNOWN_RIDER", `Unknown rider "${riderId}"`, { riderId });
 }
 
-/** Joining a round that has started is only allowed while the bracket is still being prepared. */
+/** Joining the first round once it has started is only allowed while the bracket is still being prepared. */
 function checkEntryRoundOpen(
 	bracket: Bracket,
 	riderId: string,
-	entryRoundId: string | undefined,
 ): ActionResult | undefined {
-	const index =
-		entryRoundId === undefined
-			? 0
-			: bracket.rounds.findIndex((r) => r.id === entryRoundId);
-	if (index === -1) {
-		return fail(
-			"UNKNOWN_ROUND",
-			`Unknown entry round "${entryRoundId ?? ""}"`,
-			{ riderId, roundId: entryRoundId ?? "" },
-		);
-	}
-	const round = bracket.rounds[index];
+	const round = bracket.rounds[0];
 	const preparing =
 		bracket.status === "draft" || bracket.status === "published";
 	if (round && roundStarted(round) && !preparing) {
@@ -44,13 +32,14 @@ export function addEntry(bracket: Bracket, entry: Entry): ActionResult {
 			id: entry.riderId,
 		});
 	}
-	const refused = checkEntryRoundOpen(
-		bracket,
-		entry.riderId,
-		entry.entryRoundId,
-	);
+	const refused = checkEntryRoundOpen(bracket, entry.riderId);
 	if (refused) return refused;
-	return ok({ ...bracket, entries: [...bracket.entries, entry] });
+	const stored: Entry = {
+		riderId: entry.riderId,
+		displayName: entry.displayName,
+	};
+	if (entry.seed !== undefined) stored.seed = entry.seed;
+	return ok({ ...bracket, entries: [...bracket.entries, stored] });
 }
 
 /** All or nothing: the first invalid entry rejects the whole batch, with its position in `details.index`. */
@@ -75,7 +64,6 @@ export function updateEntry(
 	changes: {
 		displayName?: string;
 		seed?: number | null;
-		entryRoundId?: string | null;
 	},
 ): ActionResult {
 	const entry = findEntry(bracket, riderId);
@@ -85,39 +73,9 @@ export function updateEntry(
 	if (changes.displayName !== undefined) next.displayName = changes.displayName;
 	const seed = changes.seed === undefined ? entry.seed : changes.seed;
 	if (seed !== undefined && seed !== null) next.seed = seed;
-	const entryRoundId =
-		changes.entryRoundId === undefined
-			? entry.entryRoundId
-			: changes.entryRoundId;
-	if (entryRoundId !== undefined && entryRoundId !== null) {
-		next.entryRoundId = entryRoundId;
-	}
-
-	if (next.entryRoundId !== entry.entryRoundId) {
-		const refused = checkEntryRoundOpen(bracket, riderId, next.entryRoundId);
-		if (refused) return refused;
-		const newIndex =
-			next.entryRoundId === undefined
-				? 0
-				: bracket.rounds.findIndex((r) => r.id === next.entryRoundId);
-		const placedBefore = bracket.rounds.find(
-			(round, i) =>
-				i < newIndex &&
-				round.heats.some((h) => h.slots.some((s) => s.riderId === riderId)),
-		);
-		if (placedBefore) {
-			return fail(
-				"BEFORE_ENTRY_ROUND",
-				`Rider "${riderId}" is already placed in round "${placedBefore.id}", before the new entry round`,
-				{ riderId, roundId: placedBefore.id },
-			);
-		}
-	}
 
 	const unchanged =
-		next.displayName === entry.displayName &&
-		next.seed === entry.seed &&
-		next.entryRoundId === entry.entryRoundId;
+		next.displayName === entry.displayName && next.seed === entry.seed;
 	if (unchanged) return ok(bracket);
 	return ok({
 		...bracket,

@@ -31,7 +31,7 @@ const base = () =>
 					riderId,
 					displayName: riderId,
 				})),
-				{ riderId: "late", displayName: "late", entryRoundId: "r2" },
+				{ riderId: "late", displayName: "late" },
 			],
 		},
 	);
@@ -80,9 +80,6 @@ describe("place", () => {
 		);
 		expect(errorCode(b, { type: "place", riderId: "zz", heatId: "h1" })).toBe(
 			"UNKNOWN_RIDER",
-		);
-		expect(errorCode(b, { type: "place", riderId: "late", heatId: "h1" })).toBe(
-			"BEFORE_ENTRY_ROUND",
 		);
 		expect(errorCode(b, { type: "place", riderId: "c", heatId: "h1" })).toBe(
 			"RIDER_ALREADY_IN_ROUND",
@@ -272,7 +269,7 @@ describe("move", () => {
 		).toBe("HEAT_LOCKED");
 	});
 
-	test("cross-round move when allowed, with entry and duplicate checks", () => {
+	test("cross-round move when allowed, with duplicate checks, and back to an earlier round", () => {
 		const b = base();
 		const options = { allowCrossRoundMove: true };
 		const next = okBracket(
@@ -302,7 +299,7 @@ describe("move", () => {
 				{ type: "move", riderId: "late", fromHeatId: "h3", toHeatId: "h1" },
 				options,
 			),
-		).toBe("BEFORE_ENTRY_ROUND");
+		).toBe("ok");
 	});
 
 	test("cross-round move into a full heat", () => {
@@ -519,20 +516,6 @@ describe("lockPlacementOnceStarted", () => {
 	});
 });
 
-describe("sample bracket sanity", () => {
-	test("unknown entry round is reported on place", () => {
-		const b = sampleBracket();
-		b.entries.push({
-			riderId: "ghost",
-			displayName: "g",
-			entryRoundId: "nope",
-		});
-		expect(
-			errorCode(b, { type: "place", riderId: "ghost", heatId: "h1" }),
-		).toBe("UNKNOWN_ROUND");
-	});
-});
-
 describe("index validation", () => {
 	test("place and move refuse indexes outside the valid range", () => {
 		const b = base();
@@ -641,7 +624,6 @@ describe("places held for the qualifiers", () => {
 					...["x", "y", "z", "w", "v"].map((riderId) => ({
 						riderId,
 						displayName: riderId,
-						entryRoundId: "r2",
 					})),
 				],
 				...extra,

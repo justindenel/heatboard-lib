@@ -3,7 +3,7 @@ import { replaceHeat, roundHasRider } from "../internal/bracket";
 import { fail, ok } from "../internal/result";
 import type { Bracket, Heat } from "../model";
 import { findHeat } from "../queries";
-import { checkComposable, checkEntryRound, checkRoom } from "./composition";
+import { checkComposable, checkRoom } from "./composition";
 
 /** Target heats of the links leaving `heatId`, without the eliminated outcome. */
 function targetHeatIds(bracket: Bracket, heatId: string): string[] {
@@ -85,9 +85,7 @@ export function placeQualifiers(
 			target = findHeat(current, link.to.heatId) ?? target;
 			needsReview = true;
 		}
-		const refused =
-			checkEntryRound(current, slot.riderId, target) ??
-			checkRoom(slot.riderId, target);
+		const refused = checkRoom(slot.riderId, target);
 		if (refused) return refused;
 		const added: Heat = {
 			...(needsReview ? flagged(target.heat) : target.heat),

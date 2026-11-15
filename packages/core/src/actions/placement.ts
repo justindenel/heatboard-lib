@@ -2,10 +2,10 @@ import type { ActionResult } from "../errors";
 import { assignSeedRounds, orderByPriority } from "../format/seeds";
 import { editorFromPlan, planFromFormat } from "../format/plan";
 import type { FormatEditorState, FormatSettings } from "../format/model";
-import { entryRoundIndex, makeSlot, mapHeats } from "../internal/bracket";
+import { makeSlot, mapHeats } from "../internal/bracket";
 import { createRandom } from "../internal/random";
 import { fail, ok } from "../internal/result";
-import type { Bracket, Entry } from "../model";
+import type { Bracket } from "../model";
 import { awaitedRiders, hasStarted } from "../queries";
 import { directEntries } from "./composition";
 import { drawRound } from "./draw";
@@ -84,22 +84,13 @@ function checkNotStarted(bracket: Bracket): ActionResult | undefined {
 }
 
 /**
- * Removes from the rounds after the first every rider whose entry round is not the round it sits in:
- * `drawRound` skips riders already placed in a later round, so the first-round entrants among them
- * would otherwise not be drawn again.
+ * Empties every heat of the rounds after the first: `drawRound` skips riders placed in a later round,
+ * so without this the riders hand-placed there would not be dealt again in the first round.
  */
 function clearLaterRounds(bracket: Bracket): Bracket {
-	const entryOf = new Map(
-		bracket.entries.map((e) => [e.riderId, entryRoundIndex(bracket, e)]),
+	return mapHeats(bracket, (heat, _round, roundIndex) =>
+		roundIndex === 0 || heat.slots.length === 0 ? heat : { ...heat, slots: [] },
 	);
-	return mapHeats(bracket, (heat, _round, roundIndex) => {
-		if (roundIndex === 0) return heat;
-		const slots = heat.slots.filter((s) => {
-			const entry = entryOf.get(s.riderId);
-			return entry === undefined || entry === roundIndex;
-		});
-		return slots.length === heat.slots.length ? heat : { ...heat, slots };
-	});
 }
 
 /**
@@ -164,7 +155,7 @@ function dealInWaves(count: number, loads: number[], max: number): number[] {
 /**
  * Non destructive: places the entered riders that sit in no heat and moves nobody else.
  * Free direct-entry places of the later rounds go to the best seed priorities, everyone else
- * is dealt over the least filled heats of their entry round (the first one by default).
+ * is dealt over the least filled heats of the first round.
  * Rounds are filled in order because the riders a heat still awaits depend on the earlier rounds.
  */
 export function placeRest(bracket: Bracket, drawSeed: number): ActionResult {
@@ -191,37 +182,18 @@ export function placeRest(bracket: Bracket, drawSeed: number): ActionResult {
 				)
 			: 0;
 	});
-	const seeded = assignSeedRounds(
-		toPlace.filter((e) => e.entryRoundId === undefined),
-		freeSeedSlots,
-		drawSeed,
-	);
+	const seeded = assignSeedRounds(toPlace, freeSeedSlots, drawSeed);
 	const seedsOf = new Map<number, string[]>();
 	for (const [riderId, k] of seeded) {
 		const roundIndex = roundIndexOfKey[k] as number;
 		seedsOf.set(roundIndex, [...(seedsOf.get(roundIndex) ?? []), riderId]);
 	}
-	const othersOf = new Map<number, Entry[]>();
-	for (const entry of toPlace) {
-		if (seeded.has(entry.riderId)) continue;
-		const roundIndex =
-			entry.entryRoundId === undefined
-				? 0
-				: bracket.rounds.findIndex((r) => r.id === entry.entryRoundId);
-		if (roundIndex === -1) {
-			return fail(
-				"UNKNOWN_ROUND",
-				`Rider "${entry.riderId}" has unknown entry round "${entry.entryRoundId ?? ""}"`,
-				{ riderId: entry.riderId, roundId: entry.entryRoundId ?? "" },
-			);
-		}
-		othersOf.set(roundIndex, [...(othersOf.get(roundIndex) ?? []), entry]);
-	}
+	const firstRoundRest = toPlace.filter((e) => !seeded.has(e.riderId));
 
 	let working = bracket;
 	for (const [roundIndex, round] of bracket.rounds.entries()) {
 		const seeds = seedsOf.get(roundIndex) ?? [];
-		const others = othersOf.get(roundIndex) ?? [];
+		const others = roundIndex === 0 ? firstRoundRest : [];
 		const count = seeds.length + others.length;
 		if (count === 0) continue;
 		const loads = (working.rounds[roundIndex]?.heats ?? []).map(

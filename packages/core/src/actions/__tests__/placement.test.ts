@@ -267,10 +267,7 @@ describe("placeAll", () => {
 				[round("r1", [heat("h1"), heat("h2")]), round("r2", [heat("h3")])],
 				{
 					status: "published",
-					entries: [
-						...entries(5),
-						{ riderId: "late", displayName: "Late", entryRoundId: "r2" },
-					],
+					entries: [...entries(5), { riderId: "late", displayName: "Late" }],
 				},
 			);
 
@@ -284,13 +281,15 @@ describe("placeAll", () => {
 			expect(placeAllPlan(b)).toBe("draw");
 			const next = okBracket(b, placeAll());
 			expect(ridersOf(next, 0).flat().sort()).toEqual([
+				"late",
 				"p01",
 				"p02",
 				"p03",
 				"p04",
 				"p05",
 			]);
-			expect(ridersOf(next, 1)).toEqual([["late"]]);
+			expect(ridersOf(next, 1)).toEqual([[]]);
+			expect(allPlaced(next).size).toBe(6);
 		});
 	});
 
@@ -356,6 +355,14 @@ describe("placeRest", () => {
 		const direct = ridersOf(after, 1).flat().sort();
 		expect(direct).toEqual(["p01", "p03"]);
 		expect(ridersOf(after, 0).flat()).toContain("p02");
+	});
+
+	test("one free seed place goes to the unplaced rider with the best priority, the other goes to the first round", () => {
+		const b = remove(remove(seeded(), "p02"), "p10");
+		const after = okBracket(b, placeRest());
+		expect(ridersOf(after, 1).flat().sort()).toEqual(["p01", "p02"]);
+		expect(ridersOf(after, 0).flat()).toContain("p10");
+		expect(ridersOf(after, 0).flat()).not.toContain("p02");
 	});
 
 	test("deals the first round over the least filled heats, best priorities first", () => {
@@ -428,18 +435,6 @@ describe("placeRest", () => {
 	test("changes nothing when everybody is placed", () => {
 		const b = seeded();
 		expect(okBracket(b, placeRest())).toBe(b);
-	});
-
-	test("a rider whose entry round is later goes to that round", () => {
-		const b = okBracket(seeded(), {
-			type: "addEntry",
-			entry: { riderId: "late", displayName: "late", entryRoundId: "final" },
-		});
-		const after = okBracket(b, placeRest());
-		expect(ridersOf(after, 2).flat()).toEqual(["late"]);
-		expect(after.entries.find((e) => e.riderId === "late")?.entryRoundId).toBe(
-			"final",
-		);
 	});
 
 	test("rounds keep room for the riders their heats await", () => {

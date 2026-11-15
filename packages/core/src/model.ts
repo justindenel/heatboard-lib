@@ -39,7 +39,6 @@ export interface Entry {
 	riderId: string;
 	displayName: string;
 	seed?: number;
-	entryRoundId?: string;
 }
 
 export interface HeatSlot {

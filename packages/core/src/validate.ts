@@ -1,7 +1,7 @@
 import type { BracketError } from "./errors";
 import { editorStateProblem } from "./format/editor";
 import { parseFormat } from "./format/parse";
-import { entryRoundIndex, findEntry } from "./internal/bracket";
+import { findEntry } from "./internal/bracket";
 import { rideMeansProblem } from "./internal/judging";
 import { raceProblem } from "./internal/race";
 import { makeError } from "./internal/result";
@@ -79,18 +79,6 @@ export function validateBracket(
 		bracket.entries.map((e) => e.riderId),
 	);
 
-	for (const entry of bracket.entries) {
-		if (entryRoundIndex(bracket, entry) === -1) {
-			errors.push(
-				makeError(
-					"UNKNOWN_ROUND",
-					`Rider "${entry.riderId}" has unknown entry round "${entry.entryRoundId ?? ""}"`,
-					{ riderId: entry.riderId, roundId: entry.entryRoundId ?? "" },
-				),
-			);
-		}
-	}
-
 	if (bracket.scoring) {
 		const problem = scoringProblem(bracket.scoring);
 		if (problem) {
@@ -163,7 +151,7 @@ export function validateBracket(
 		);
 	}
 
-	for (const [roundIndex, round] of bracket.rounds.entries()) {
+	for (const round of bracket.rounds) {
 		const seen = new Set<string>();
 		for (const heat of round.heats) {
 			if (
@@ -275,21 +263,12 @@ export function validateBracket(
 					);
 				}
 				seen.add(riderId);
-				const entry = findEntry(bracket, riderId);
-				if (!entry) {
+				if (!findEntry(bracket, riderId)) {
 					errors.push(
 						makeError(
 							"UNKNOWN_RIDER",
 							`Rider "${riderId}" in heat "${heat.id}" is not in entries`,
 							{ riderId, heatId: heat.id },
-						),
-					);
-				} else if (roundIndex < entryRoundIndex(bracket, entry)) {
-					errors.push(
-						makeError(
-							"BEFORE_ENTRY_ROUND",
-							`Rider "${riderId}" is placed in round "${round.id}" before entering at round "${entry.entryRoundId ?? ""}"`,
-							{ riderId, roundId: round.id },
 						),
 					);
 				}

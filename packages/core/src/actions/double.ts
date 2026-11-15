@@ -18,7 +18,7 @@ import { rideMeansProblem } from "../internal/judging";
 import { fail, ok } from "../internal/result";
 import type { Bracket, Link } from "../model";
 import { findHeat } from "../queries";
-import { checkComposable, checkEntryRound, checkRoom } from "./composition";
+import { checkComposable, checkRoom } from "./composition";
 
 const linkKey = (link: Link) => `${link.from.heatId}#${link.from.rank}`;
 
@@ -75,13 +75,6 @@ export function openDoubleElimination(
 		stored.drawSeed,
 		stored.editor?.riders,
 	);
-	if (!planned.ok) {
-		return fail(
-			"UNKNOWN_ROUND",
-			`Rider "${planned.riderId}" has entry round "${planned.entryRoundId}" which is not in the format`,
-			{ riderId: planned.riderId, roundId: planned.entryRoundId },
-		);
-	}
 	const generated = generateDoubleElimination(
 		stored.settings,
 		{ finalMode: mode, superFinal, sizes: planned.sizes },
@@ -105,13 +98,6 @@ export function openDoubleElimination(
 		stored.drawSeed,
 		stored.editor?.riders,
 	);
-	if (!built.ok) {
-		return fail(
-			"UNKNOWN_ROUND",
-			`Rider "${built.riderId}" has entry round "${built.entryRoundId}" which is not in the format`,
-			{ riderId: built.riderId, roundId: built.entryRoundId },
-		);
-	}
 
 	const added = built.rounds.filter((r) => r.group === DOUBLE_GROUP);
 	const addedHeatIds = new Set(added.flatMap((r) => r.heats.map((h) => h.id)));
@@ -150,10 +136,7 @@ export function openDoubleElimination(
 			(s) => s.rank === link.from.rank && s.status === undefined,
 		);
 		if (!slot || roundHasRider(target.round, slot.riderId)) continue;
-		const refused =
-			checkEntryRound(current, slot.riderId, target) ??
-			checkComposable(target) ??
-			checkRoom(slot.riderId, target);
+		const refused = checkComposable(target) ?? checkRoom(slot.riderId, target);
 		if (refused) return refused;
 		current = replaceHeat(current, target, {
 			...target.heat,
@@ -185,19 +168,6 @@ export function closeDoubleElimination(bracket: Bracket): ActionResult {
 		);
 	}
 	const roundIds = new Set(doubleRounds.map((r) => r.id));
-	const referencing = bracket.entries.find(
-		(e) => e.entryRoundId !== undefined && roundIds.has(e.entryRoundId),
-	);
-	if (referencing) {
-		return fail(
-			"ROUND_REFERENCED",
-			`A round of the double elimination is the entry round of rider "${referencing.riderId}"`,
-			{
-				roundId: referencing.entryRoundId ?? "",
-				riderId: referencing.riderId,
-			},
-		);
-	}
 	const heatIds = new Set(
 		doubleRounds.flatMap((r) => r.heats.map((h) => h.id)),
 	);

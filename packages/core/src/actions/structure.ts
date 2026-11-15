@@ -114,14 +114,6 @@ export function removeRound(
 			roundId,
 		});
 	}
-	const referencing = bracket.entries.find((e) => e.entryRoundId === roundId);
-	if (referencing) {
-		return fail(
-			"ROUND_REFERENCED",
-			`Round "${roundId}" is the entry round of rider "${referencing.riderId}"`,
-			{ roundId, riderId: referencing.riderId },
-		);
-	}
 	const remaining: Bracket = {
 		...bracket,
 		rounds: bracket.rounds.filter((r) => r !== round),

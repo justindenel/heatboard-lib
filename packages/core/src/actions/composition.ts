@@ -1,6 +1,5 @@
 import type { ActionResult } from "../errors";
 import {
-	entryRoundIndex,
 	findEntry,
 	makeSlot,
 	mapHeats,
@@ -65,31 +64,12 @@ function unknownHeat(heatId: string): ActionResult {
 	return fail("UNKNOWN_HEAT", `Unknown heat "${heatId}"`, { heatId });
 }
 
-export function checkEntryRound(
+function checkKnownRider(
 	bracket: Bracket,
 	riderId: string,
-	found: FoundHeat,
 ): ActionResult | undefined {
-	const entry = findEntry(bracket, riderId);
-	if (!entry) {
-		return fail("UNKNOWN_RIDER", `Unknown rider "${riderId}"`, { riderId });
-	}
-	const entryIndex = entryRoundIndex(bracket, entry);
-	if (entryIndex === -1) {
-		return fail(
-			"UNKNOWN_ROUND",
-			`Rider "${riderId}" has unknown entry round "${entry.entryRoundId ?? ""}"`,
-			{ riderId, roundId: entry.entryRoundId ?? "" },
-		);
-	}
-	if (found.roundIndex < entryIndex) {
-		return fail(
-			"BEFORE_ENTRY_ROUND",
-			`Rider "${riderId}" cannot be placed in round "${found.round.id}" before entering at round "${entry.entryRoundId ?? ""}"`,
-			{ riderId, roundId: found.round.id },
-		);
-	}
-	return undefined;
+	if (findEntry(bracket, riderId)) return undefined;
+	return fail("UNKNOWN_RIDER", `Unknown rider "${riderId}"`, { riderId });
 }
 
 export function checkRoom(
@@ -273,7 +253,7 @@ function placeIn(
 	const found = findHeat(bracket, heatId);
 	if (!found) return unknownHeat(heatId);
 	const refused =
-		checkEntryRound(bracket, riderId, found) ??
+		checkKnownRider(bracket, riderId) ??
 		checkComposable(found) ??
 		checkRoom(riderId, found) ??
 		checkAwaitedRoom(bracket, riderId, found) ??
@@ -372,7 +352,7 @@ export function move(
 	const refused =
 		checkComposable(from) ??
 		checkComposable(to) ??
-		(crossRound ? checkEntryRound(bracket, riderId, to) : undefined);
+		(crossRound ? checkKnownRider(bracket, riderId) : undefined);
 	if (refused) return refused;
 
 	const fullOrDuplicate = crossRound

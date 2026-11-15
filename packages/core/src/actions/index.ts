@@ -126,7 +126,6 @@ export type Action =
 			riderId: string;
 			displayName?: string;
 			seed?: number | null;
-			entryRoundId?: string | null;
 	  }
 	| { type: "removeEntry"; riderId: string }
 	| {

@@ -175,27 +175,7 @@ describe("judging refused because of a target heat", () => {
 		expect(h3).not.toHaveProperty("needsReview");
 	});
 
-	test("a rider who enters later, an unknown target, a backward link", () => {
-		const early = bracket(
-			[
-				round("r1", [
-					heat("h1", [{ id: "a", rank: 1 }], { status: "running" }),
-				]),
-				round("r2", [heat("h2")]),
-				round("r3", [heat("h3")]),
-			],
-			{
-				entries: [{ riderId: "a", displayName: "a", entryRoundId: "r3" }],
-				links: [link("h1", 1, "h2")],
-			},
-		);
-		expect(
-			errorCode(early, {
-				type: "setHeatStatus",
-				heatId: "h1",
-				status: "judged",
-			}),
-		).toBe("BEFORE_ENTRY_ROUND");
+	test("an unknown target, a backward link", () => {
 		const unknown = bracket(
 			[
 				round("r1", [

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { Bracket, HeatStatus } from "../model";
+import type { Bracket, Entry, HeatStatus } from "../model";
 import { config } from "../scoring/__tests__/helpers";
 import { validateBracket } from "../validate";
 import { bracket, heat, link, round, sampleBracket } from "./fixtures";
@@ -63,18 +63,13 @@ describe("problems", () => {
 		expect(codes(b)).toEqual(["UNKNOWN_RIDER"]);
 	});
 
-	test("placement before the entry round and unknown entry round", () => {
-		const early = bracket(
-			[round("r1", [heat("h1", ["a"])]), round("r2", [heat("h2")])],
-			{
-				entries: [{ riderId: "a", displayName: "a", entryRoundId: "r2" }],
-			},
-		);
-		expect(codes(early)).toEqual(["BEFORE_ENTRY_ROUND"]);
-		const unknown = bracket([round("r1", [heat("h1")])], {
-			entries: [{ riderId: "a", displayName: "a", entryRoundId: "zz" }],
+	test("a leftover entryRoundId property on an entry is ignored", () => {
+		const b = bracket([round("r1", [heat("h1", ["a"])])], {
+			entries: [
+				{ riderId: "a", displayName: "a", entryRoundId: "zz" } as Entry,
+			],
 		});
-		expect(codes(unknown)).toEqual(["UNKNOWN_ROUND"]);
+		expect(codes(b)).toEqual([]);
 	});
 
 	test("bad links", () => {

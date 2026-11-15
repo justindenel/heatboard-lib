@@ -216,15 +216,21 @@ describe("buildFromFormat", () => {
 		).toBe(8);
 	});
 
-	test("late-entering seeds join their round first, sizes account for them", () => {
+	test("seeds join their round first, sizes account for them", () => {
 		const list = [
 			...entries(8),
-			{ riderId: "s1", displayName: "Seed 1", seed: 1, entryRoundId: "r2" },
-			{ riderId: "s2", displayName: "Seed 2", seed: 2, entryRoundId: "r2" },
+			{ riderId: "s1", displayName: "Seed 1", seed: 1 },
+			{ riderId: "s2", displayName: "Seed 2", seed: 2 },
 		];
+		const single = preset("Single elimination");
 		const result = buildFromFormat(
 			{ entries: list, rounds: [] },
-			preset("Single elimination"),
+			{
+				...single,
+				rounds: single.rounds.map((r, i) =>
+					i === 1 ? { ...r, seedSlots: 2 } : r,
+				),
+			},
 			1,
 		);
 		if (!result.ok) throw new Error("build failed");
@@ -395,13 +401,11 @@ describe("buildFromFormat", () => {
 			expect(others.size).toBeGreaterThan(1);
 		});
 
-		test("riders with an explicit entry round are never taken as seeds", () => {
-			const list = [
-				...entries(8, (i) => (i === 0 ? { seed: 1 } : {})),
-				{ riderId: "late", displayName: "late", seed: 1, entryRoundId: "r2" },
-			];
-			const result = run(list, threeRounds({ r2: 1 }));
-			expect(idsOf(result.rounds[1]).flat().sort()).toEqual(["late", "p01"]);
+		test("a rider with seed 1 takes a seed place of the latest round that has seed slots", () => {
+			const list = entries(16, (i) => (i === 0 ? { seed: 1 } : {}));
+			const result = run(list, threeRounds({ r2: 1, final: 1 }));
+			expect(idsOf(result.rounds[2]).flat()).toEqual(["p01"]);
+			expect(idsOf(result.rounds[1]).flat()).not.toContain("p01");
 		});
 
 		test("planned riders keep the rounds sized while seeds are missing", () => {
@@ -414,22 +418,6 @@ describe("buildFromFormat", () => {
 		test("the same inputs build the same bracket", () => {
 			const list = entries(16, (i) => (i < 2 ? { seed: 1 } : {}));
 			expect(run(list, twoRounds(2), 5)).toEqual(run(list, twoRounds(2), 5));
-		});
-	});
-
-	test("an entry round outside the format is refused", () => {
-		const list = [{ riderId: "x", displayName: "x", entryRoundId: "zzz" }];
-		expect(
-			buildFromFormat(
-				{ entries: list, rounds: [] },
-				preset("Single elimination"),
-				1,
-			),
-		).toEqual({
-			ok: false,
-			code: "UNKNOWN_ROUND",
-			riderId: "x",
-			entryRoundId: "zzz",
 		});
 	});
 
