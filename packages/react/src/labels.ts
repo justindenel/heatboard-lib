@@ -33,8 +33,6 @@ export interface Labels {
 	expandRound: (name: string) => string;
 	collapseRound: (name: string) => string;
 	roundCollapsedSummary: (heats: number, places: number) => string;
-	/** Shown in the list of a later entry round while a rider is dragged out of that round. */
-	entryPoolDropHere: string;
 	/** Display names of lycra colors, keyed by lowercase color value. */
 	lycraColorNames: Record<string, string>;
 	lycra: (color: string) => string;
@@ -415,7 +413,6 @@ export interface Labels {
 		heats: number,
 	) => string;
 	formatProblem: (path: string, message: string) => string;
-	formatEntryRoundMissing: (round: string) => string;
 	formatImport: string;
 	formatExport: string;
 	formatJson: string;
@@ -610,7 +607,6 @@ const en: Labels = {
 	collapseRound: (name) => `Hide ${name}`,
 	roundCollapsedSummary: (heats, places) =>
 		`${heats} ${heats === 1 ? "heat" : "heats"} \u00B7 ${places} ${places === 1 ? "place" : "places"}`,
-	entryPoolDropHere: "Drop here to take the rider out of the round",
 	lycraColorNames: {
 		red: "red",
 		blue: "blue",
@@ -635,7 +631,6 @@ const en: Labels = {
 		HEAT_JUDGED: "This heat has been judged and can no longer be changed.",
 		RIDER_ALREADY_IN_ROUND: "This rider is already in this round.",
 		CROSS_ROUND_MOVE: "Riders cannot be moved from one round to another.",
-		BEFORE_ENTRY_ROUND: "This rider only enters in a later round.",
 		BRACKET_VALIDATED: "The bracket is validated and can no longer be changed.",
 		UNKNOWN_HEAT: "This heat no longer exists.",
 		UNKNOWN_RIDER: "This rider is not registered.",
@@ -666,7 +661,6 @@ const en: Labels = {
 		INVALID_RANKS: "These ranks are not valid.",
 		DUPLICATE_ID: "This identifier is already used.",
 		ROUND_STARTED: "This round has started.",
-		ROUND_REFERENCED: "A rider enters the bracket at this round.",
 		RIDER_IN_STARTED_HEAT: "This rider is in a heat that has started.",
 		DESTRUCTIVE_CHANGE: "This change needs confirmation.",
 		DOWNSTREAM_STARTED:
@@ -1148,8 +1142,6 @@ const en: Labels = {
 	formatWarningTooManyHeats: (round, riders, heats) =>
 		`${round}: ${riders} riders for ${heats} heats, some heats will stay empty.`,
 	formatProblem: (path, message) => `${path || "format"}: ${message}`,
-	formatEntryRoundMissing: (round) =>
-		`A rider enters at "${round}", which is not in these settings.`,
 	formatImport: "Import JSON",
 	formatExport: "Export JSON",
 	formatJson: "Round settings JSON",
@@ -1384,7 +1376,6 @@ const fr: Labels = {
 	collapseRound: (name) => `Masquer ${name}`,
 	roundCollapsedSummary: (heats, places) =>
 		`${heats} ${heats === 1 ? "heat" : "heats"} \u00B7 ${places} ${places === 1 ? "place" : "places"}`,
-	entryPoolDropHere: "Déposer ici pour sortir le rider du tour",
 	lycraColorNames: {
 		red: "rouge",
 		blue: "bleue",
@@ -1409,7 +1400,6 @@ const fr: Labels = {
 		HEAT_JUDGED: "Ce heat est jugé et ne peut plus être modifié.",
 		RIDER_ALREADY_IN_ROUND: "Ce rider est déjà dans ce tour.",
 		CROSS_ROUND_MOVE: "Un rider ne peut pas changer de tour.",
-		BEFORE_ENTRY_ROUND: "Ce rider n'entre qu'à un tour suivant.",
 		BRACKET_VALIDATED: "Le tableau est validé et ne peut plus être modifié.",
 		UNKNOWN_HEAT: "Ce heat n'existe plus.",
 		UNKNOWN_RIDER: "Ce rider n'est pas inscrit.",
@@ -1441,7 +1431,6 @@ const fr: Labels = {
 		INVALID_RANKS: "Ces rangs ne sont pas valides.",
 		DUPLICATE_ID: "Cet identifiant est déjà utilisé.",
 		ROUND_STARTED: "Ce tour a démarré.",
-		ROUND_REFERENCED: "Un rider entre dans le tableau à ce tour.",
 		RIDER_IN_STARTED_HEAT: "Ce rider est dans un heat démarré.",
 		DESTRUCTIVE_CHANGE: "Cette modification demande une confirmation.",
 		DOWNSTREAM_STARTED:
@@ -1944,8 +1933,6 @@ const fr: Labels = {
 	formatWarningTooManyHeats: (round, riders, heats) =>
 		`${round} : ${riders} riders pour ${heats} heats, certains heats resteront vides.`,
 	formatProblem: (path, message) => `${path || "format"} : ${message}`,
-	formatEntryRoundMissing: (round) =>
-		`Un rider entre à « ${round} », qui n'est pas dans ces réglages.`,
 	formatImport: "Importer du JSON",
 	formatExport: "Exporter en JSON",
 	formatJson: "JSON des réglages des tours",

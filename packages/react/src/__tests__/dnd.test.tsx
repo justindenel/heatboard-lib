@@ -43,7 +43,7 @@ function makeDndBracket(): Bracket {
 			{ riderId: "b", displayName: "Bob" },
 			{ riderId: "c", displayName: "Cy" },
 			{ riderId: "d", displayName: "Dee" },
-			{ riderId: "e", displayName: "Eve", entryRoundId: "round2" },
+			{ riderId: "e", displayName: "Eve" },
 		],
 		rounds: [
 			{
@@ -289,7 +289,7 @@ describe("draggable items", () => {
 	it("keeps every control out of the draggable rows and chips", () => {
 		render(<Harness poolProps={{ mode: "admin" }} />);
 		const handles = document.querySelectorAll("[aria-roledescription]");
-		expect(handles.length).toBe(4);
+		expect(handles.length).toBe(5);
 		for (const handle of handles) {
 			expect(
 				handle.querySelector("button, input, select, textarea, a"),
@@ -518,25 +518,6 @@ describe("keyboard drag and drop", () => {
 		await press(document, "Space");
 		expect(dispatchSpy).not.toHaveBeenCalled();
 		expect(riderOrder("h3")).toEqual([]);
-	});
-
-	it("refuses a drop towards an earlier round", async () => {
-		const bracket = makeDndBracket();
-		const final = bracket.rounds[1]!.heats[0]!;
-		final.slots = [{ riderId: "e", rank: null }];
-		const dispatchSpy = vi.fn();
-		render(<Harness bracket={bracket} dispatchSpy={dispatchSpy} />);
-		await pickUp("e");
-		await press(document, "ArrowUp");
-		const heat = heatSection("h2");
-		expect(heat.getAttribute("data-drop")).toBe("denied");
-		expect(heat.hasAttribute("data-drop-kind")).toBe(false);
-		expect(heat.getAttribute("title")).toBe(
-			"This rider only enters in a later round.",
-		);
-		await press(document, "Space");
-		expect(dispatchSpy).not.toHaveBeenCalled();
-		expect(riderOrder("h3")).toEqual(["e"]);
 	});
 
 	it("refuses a later round that already holds the rider elsewhere", async () => {
@@ -770,42 +751,31 @@ describe("error banner", () => {
 });
 
 describe("EntryPool", () => {
-	it("lists entries without a place whose entry round is not later", () => {
+	it("lists the entries placed in no heat", () => {
 		render(
 			<BracketProvider value={makeController(makeDndBracket())}>
 				<EntryPool roundId="round1" defaultCollapsed={false} />
 			</BracketProvider>,
 		);
 		const names = screen.getAllByRole("listitem").map((li) => li.textContent);
-		expect(names).toEqual(["Dee"]);
+		expect(names).toEqual(["Dee", "Eve"]);
 		expect(
 			screen.getByRole("heading", { name: "Unplaced riders" }),
 		).toBeTruthy();
 	});
 
-	it("groups by entry round without roundId and includes later entries for later rounds", () => {
-		const controller = makeController(makeDndBracket());
-		const { unmount } = render(
-			<BracketProvider value={controller}>
-				<EntryPool defaultCollapsed={false} />
+	it("lists the same entries whichever round it stands for", () => {
+		render(
+			<BracketProvider value={makeController(makeDndBracket())}>
+				<EntryPool roundId="round2" defaultCollapsed={false} />
 			</BracketProvider>,
 		);
 		expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(
 			["Dee", "Eve"],
 		);
-		expect(screen.getByRole("heading", { name: "Round 2" })).toBeTruthy();
-		unmount();
-		render(
-			<BracketProvider value={controller}>
-				<EntryPool roundId="round2" defaultCollapsed={false} />
-			</BracketProvider>,
-		);
-		expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(
-			["Ann", "Bob", "Cy", "Dee", "Eve"],
-		);
 	});
 
-	it("does not list a seed already placed in a later round", () => {
+	it("does not list a rider already placed in a later round", () => {
 		const bracket = makeDndBracket();
 		bracket.rounds[1]!.heats[0]!.slots = [{ riderId: "d", rank: null }];
 		render(
@@ -816,13 +786,6 @@ describe("EntryPool", () => {
 		expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(
 			["Eve"],
 		);
-		cleanup();
-		render(
-			<BracketProvider value={makeController(bracket)}>
-				<EntryPool roundId="round1" defaultCollapsed={false} />
-			</BracketProvider>,
-		);
-		expect(screen.queryByText("Dee")).toBeNull();
 	});
 
 	it("shows a translated empty state", () => {

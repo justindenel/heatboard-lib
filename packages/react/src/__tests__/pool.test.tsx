@@ -135,31 +135,22 @@ describe("collapsible panel", () => {
 	});
 });
 
-describe("entry rounds", () => {
-	function renderGrouped() {
+describe("single pool", () => {
+	it("lists an unplaced entry once and shows no panel for a later round", () => {
 		const bracket = makeRaceBracket();
-		bracket.entries.push({
-			riderId: "r6",
-			displayName: "Fay",
-			entryRoundId: "round2",
-		});
-		return render(
+		bracket.entries.push({ riderId: "r6", displayName: "Fay" });
+		const { container } = render(
 			<HeatboardProvider>
 				<BracketProvider value={makeController(bracket)}>
 					<EntryPool mode="admin" defaultCollapsed={false} />
 				</BracketProvider>
 			</HeatboardProvider>,
 		);
-	}
-
-	it("lists riders entering at a later round under that round", () => {
-		const { container } = renderGrouped();
 		expect(container.querySelector(".hb-pool__count")!.textContent).toBe("2");
+		expect(screen.getAllByText("Fay")).toHaveLength(1);
 		expect(screen.getByText("Eve")).toBeTruthy();
-		expect(screen.getByText("Fay")).toBeTruthy();
-		const group = screen.getByRole("heading", { name: "Round 2" });
-		expect(group.nextElementSibling!.textContent).toContain("Fay");
-		expect(screen.queryByRole("heading", { name: "Round 1" })).toBeNull();
+		expect(container.querySelectorAll(".hb-pool__list")).toHaveLength(1);
+		expect(screen.queryByRole("heading", { name: "Round 2" })).toBeNull();
 	});
 });
 

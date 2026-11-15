@@ -1,17 +1,5 @@
-import {
-	Fragment,
-	useCallback,
-	useId,
-	useMemo,
-	useState,
-	type ReactNode,
-} from "react";
-import {
-	findHeat,
-	type Bracket,
-	type Entry,
-	type Round,
-} from "@heatboard/core";
+import { useCallback, useId, useMemo, useState } from "react";
+import { type Bracket, type Entry, type Round } from "@heatboard/core";
 import { useHeatboardConfig } from "../config";
 import { useBracketContext } from "../context";
 import {
@@ -36,7 +24,6 @@ import {
 	SettingsContext,
 	cx,
 	partProps,
-	useBoardSettings,
 	usePresentation,
 	type AdminPermissions,
 	type BoardSettings,
@@ -46,7 +33,7 @@ import {
 export interface EntryPoolProps<
 	TRider = unknown,
 > extends PresentationProps<TRider> {
-	/** Round the entries are listed for. Without it, the entries are grouped by entry round: the first round, then each later round with riders entering there. */
+	/** Round a rider dropped on the pool is taken out of; the first round by default. The list itself always holds the entries placed in no heat. */
 	roundId?: string;
 	theme?: HeatboardTheme;
 	colorScheme?: ColorSchemeSetting;
@@ -69,83 +56,13 @@ function roundHasRider(round: Round, riderId: string): boolean {
 	);
 }
 
-/**
- * Entries with no place in the round whose entry round is not later than it. For the first round a
- * rider placed in any round counts as placed: a seed put straight into a later round has no
- * entry round recorded, yet is not waiting for the first round.
- */
-function unplacedEntries(
-	bracket: Bracket,
-	roundId: string | undefined,
-): Entry[] {
-	const roundIndex =
-		roundId === undefined
-			? 0
-			: bracket.rounds.findIndex((round) => round.id === roundId);
-	const round = bracket.rounds[roundIndex];
-	if (!round) return [];
-	return bracket.entries.filter((entry) => {
-		const entryIndex =
-			entry.entryRoundId === undefined
-				? 0
-				: bracket.rounds.findIndex((r) => r.id === entry.entryRoundId);
-		return (
-			entryIndex !== -1 &&
-			entryIndex <= roundIndex &&
-			(roundIndex === 0
-				? !placedAnywhere(bracket, entry.riderId)
-				: !roundHasRider(round, entry.riderId))
-		);
-	});
-}
-
-/** Entries that enter at `round` and have no place in it yet. */
-function entriesEnteringAt(bracket: Bracket, round: Round): Entry[] {
-	const roundIndex = bracket.rounds.indexOf(round);
-	return bracket.entries.filter((entry) => {
-		const entryIndex =
-			entry.entryRoundId === undefined
-				? 0
-				: bracket.rounds.findIndex((r) => r.id === entry.entryRoundId);
-		return entryIndex === roundIndex && !roundHasRider(round, entry.riderId);
-	});
-}
-
-interface PoolGroup {
-	round: Round;
-	entries: Entry[];
-	titled: boolean;
-}
-
-/** Drop zone standing for the list of a later entry round, so a rider placed in that round can be put back. */
-function PoolGroupZone(props: {
-	roundId: string;
-	enabled: boolean;
-	children: ReactNode;
-}) {
-	const settings = useBoardSettings();
-	const drop = usePoolDrop(props.roundId);
-	const { setNodeRef } = usePoolDropZone(props.roundId, props.enabled);
-	const zone = partProps(
-		settings,
-		"entryPoolZone",
-		"hb-pool__zone",
-		drop && `hb-drop--${drop.status}`,
-	);
-	return (
-		<div
-			ref={setNodeRef}
-			className={zone.className}
-			style={zone.style}
-			data-drop={drop?.status}
-			title={drop?.reason}
-		>
-			{props.children}
-		</div>
+function unplacedEntries(bracket: Bracket): Entry[] {
+	return bracket.entries.filter(
+		(entry) => !placedAnywhere(bracket, entry.riderId),
 	);
 }
 
-/** Collapsible side panel (a strip when narrow) of the entries not yet placed in a round; draggable into heats when inside a `HeatboardDnd`. */
+/** Collapsible side panel (a strip when narrow) of the entries placed in no heat; draggable into heats when inside a `HeatboardDnd`. */
 export function EntryPool<TRider = unknown>(props: EntryPoolProps<TRider>) {
 	const { bracket } = useBracketContext();
 	const config = useHeatboardConfig();
@@ -179,41 +96,8 @@ export function EntryPool<TRider = unknown>(props: EntryPoolProps<TRider>) {
 
 	const round =
 		bracket.rounds.find((r) => r.id === roundId) ?? bracket.rounds[0];
-	const groups = useMemo((): PoolGroup[] => {
-		if (roundId !== undefined) {
-			const target = bracket.rounds.find((r) => r.id === roundId);
-			return target
-				? [
-						{
-							round: target,
-							entries: unplacedEntries(bracket, roundId),
-							titled: false,
-						},
-					]
-				: [];
-		}
-		return bracket.rounds.flatMap((r, index): PoolGroup[] => {
-			const entries =
-				index === 0
-					? unplacedEntries(bracket, r.id)
-					: entriesEnteringAt(bracket, r);
-			const entersHere =
-				index > 0 && bracket.entries.some((e) => e.entryRoundId === r.id);
-			return index === 0 || entries.length > 0 || entersHere
-				? [{ round: r, entries, titled: index > 0 }]
-				: [];
-		});
-	}, [bracket, roundId]);
-	const draggedFromRound =
-		dnd?.active?.kind === "slot"
-			? findHeat(bracket, dnd.active.heatId)?.round.id
-			: undefined;
-	const shownGroups = groups.filter(
-		(group) =>
-			group.entries.length > 0 ||
-			(group.titled && group.round.id === draggedFromRound),
-	);
-	const entryCount = groups.reduce((sum, g) => sum + g.entries.length, 0);
+	const entries = useMemo(() => unplacedEntries(bracket), [bracket]);
+	const entryCount = entries.length;
 	const Item = settings.components.EntryPoolItem ?? EntryPoolItem;
 	const Form = settings.components.EntryForm ?? EntryForm;
 	const draggableItems = dnd?.hasAdminBoard === true;
@@ -242,39 +126,39 @@ export function EntryPool<TRider = unknown>(props: EntryPoolProps<TRider>) {
 	const list = partProps(settings, "entryPoolList", "hb-pool__list");
 	const draggable = partProps(settings, "draggable", "hb-draggable");
 
-	const renderItems = (group: PoolGroup) =>
-		group.entries.map((entry) => {
-			const item = (
-				<Item
-					entry={entry}
-					roundId={group.round.id}
-					rider={settings.riders?.[entry.riderId]}
-				/>
-			);
-			return (
-				<li key={entry.riderId} className={chip.className} style={chip.style}>
-					{draggableItems ? (
-						<PoolDraggable
-							roundId={group.round.id}
-							riderId={entry.riderId}
-							className={draggable.className}
-							style={draggable.style}
-							roleDescription={settings.labels.dndRoleDescription}
-							preview={
-								<SettingsContext.Provider value={settings}>
-									{item}
-								</SettingsContext.Provider>
-							}
-						>
-							{item}
-						</PoolDraggable>
-					) : (
-						item
-					)}
-					<EntryMenu entry={entry} />
-				</li>
-			);
-		});
+	const poolRoundId = round?.id ?? "";
+	const items = entries.map((entry) => {
+		const item = (
+			<Item
+				entry={entry}
+				roundId={poolRoundId}
+				rider={settings.riders?.[entry.riderId]}
+			/>
+		);
+		return (
+			<li key={entry.riderId} className={chip.className} style={chip.style}>
+				{draggableItems ? (
+					<PoolDraggable
+						roundId={poolRoundId}
+						riderId={entry.riderId}
+						className={draggable.className}
+						style={draggable.style}
+						roleDescription={settings.labels.dndRoleDescription}
+						preview={
+							<SettingsContext.Provider value={settings}>
+								{item}
+							</SettingsContext.Provider>
+						}
+					>
+						{item}
+					</PoolDraggable>
+				) : (
+					item
+				)}
+				<EntryMenu entry={entry} />
+			</li>
+		);
+	});
 
 	return (
 		<SettingsContext.Provider value={settings}>
@@ -320,56 +204,21 @@ export function EntryPool<TRider = unknown>(props: EntryPoolProps<TRider>) {
 								{settings.labels.entryPoolEmpty}
 							</p>
 						)}
-						{shownGroups.map((group) => {
-							const items = renderItems(group);
-							const content = (
-								<>
-									{group.titled && (
-										<Heading
-											depth={1}
-											className={cx(!settings.unstyled && "hb-pool__group")}
-										>
-											{group.round.name}
-										</Heading>
-									)}
-									{group.entries.length > 0 ? (
-										<ul className={list.className} style={list.style}>
-											{draggableItems ? (
-												<PoolList
-													roundId={group.round.id}
-													riderIds={group.entries.map((e) => e.riderId)}
-												>
-													{items}
-												</PoolList>
-											) : (
-												items
-											)}
-										</ul>
-									) : (
-										<p className={empty.className} style={empty.style}>
-											{settings.labels.entryPoolDropHere}
-										</p>
-									)}
-								</>
-							);
-							// The first group is the whole panel; each later one is a zone of its own.
-							return group.titled && roundId === undefined ? (
-								<PoolGroupZone
-									key={group.round.id}
-									roundId={group.round.id}
-									enabled={draggableItems}
-								>
-									{content}
-								</PoolGroupZone>
-							) : (
-								<Fragment key={group.round.id}>{content}</Fragment>
-							);
-						})}
-						<Form
-							entryRoundId={
-								round && round !== bracket.rounds[0] ? round.id : undefined
-							}
-						/>
+						{entryCount > 0 && (
+							<ul className={list.className} style={list.style}>
+								{draggableItems ? (
+									<PoolList
+										roundId={poolRoundId}
+										riderIds={entries.map((e) => e.riderId)}
+									>
+										{items}
+									</PoolList>
+								) : (
+									items
+								)}
+							</ul>
+						)}
+						<Form />
 					</div>
 				)}
 			</section>

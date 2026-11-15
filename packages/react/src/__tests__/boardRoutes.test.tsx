@@ -5,10 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	Board,
 	BracketProvider,
-	EntryPool,
-	HeatboardDnd,
 	HeatboardProvider,
-	labels,
 	useBracket,
 } from "../index";
 import {
@@ -32,7 +29,7 @@ function bracketOf(over: Partial<Bracket> = {}): Bracket {
 		entries: [
 			{ riderId: "r1", displayName: "Ann" },
 			{ riderId: "r2", displayName: "Bob" },
-			{ riderId: "r3", displayName: "Cy", entryRoundId: "t3" },
+			{ riderId: "r3", displayName: "Cy" },
 		],
 		rounds: [
 			round("t1", "Tour 1", [
@@ -341,19 +338,5 @@ describe("late entries", () => {
 			{ type: "remove", riderId: "r3", heatId: "e" },
 			{ type: "remove", riderId: "r3", heatId: "e" },
 		]);
-	});
-
-	it("shows no zone until a rider of that round is dragged", () => {
-		const { container } = render(
-			<HeatboardProvider locale="en">
-				<BracketProvider value={makeController(lateBracket())}>
-					<HeatboardDnd>
-						<EntryPool mode="admin" defaultCollapsed={false} />
-					</HeatboardDnd>
-				</BracketProvider>
-			</HeatboardProvider>,
-		);
-		expect(container.querySelector(".hb-pool__zone")).toBeNull();
-		expect(labels.en.entryPoolDropHere).not.toBe("");
 	});
 });

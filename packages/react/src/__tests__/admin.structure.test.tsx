@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-	expectRefused,
 	heatSection,
 	inspector,
 	makeJudgedRace,
@@ -253,24 +252,6 @@ describe("rounds and heats", () => {
 			within(finishedHeat).queryByRole("button", { name: /^Remove/ }),
 		).toBeNull();
 	});
-
-	it("greys a removal the core refuses", () => {
-		const bracket = makeRaceBracket({
-			entries: [{ riderId: "r1", displayName: "Ann", entryRoundId: "round2" }],
-		});
-		const { container, actions } = renderAdmin(bracket);
-		const remove = button(
-			openRoundInspector(container, "round2"),
-			"Remove Round 2",
-		);
-		expectRefused(remove);
-		expect(remove.title).toBe("A rider enters the bracket at this round.");
-		remove.focus();
-		expect(document.activeElement).toBe(remove);
-		fireEvent.click(remove);
-		expect(actions).toEqual([]);
-		expect(screen.queryByRole("alertdialog")).toBeNull();
-	});
 });
 
 function openEntryMenu(name: string): HTMLElement {
@@ -404,7 +385,7 @@ describe("entries", () => {
 		expect(actions).toEqual([]);
 	});
 
-	it("gives new entries the entry round of the pool, except for the first round", () => {
+	it("adds a new entry without a round, whichever round the pool stands for", () => {
 		const second = renderAdmin(makeRaceBracket(), {
 			pool: true,
 			poolRoundId: "round2",
@@ -416,7 +397,7 @@ describe("entries", () => {
 		expect(second.actions).toEqual([
 			{
 				type: "addEntry",
-				entry: { riderId: "id-1", displayName: "Fay", entryRoundId: "round2" },
+				entry: { riderId: "id-1", displayName: "Fay" },
 			},
 		]);
 	});
